@@ -2,6 +2,29 @@
   "name": "deepjit",
   "version": "0.1.0",
   "description": "DeepJIT: JIT-compile repeated agent workflows into skills and flow templates for deepseek-harness (dsh)",
+  "license": "MIT",
+  "author": {
+    "name": "DeepJIT Contributors"
+  },
+  "homepage": "https://github.com/fly3366/DeepJIT#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fly3366/DeepJIT.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fly3366/DeepJIT/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "jit",
+    "skill",
+    "flow",
+    "agent",
+    "cordis"
+  ],
   "type": "module",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
