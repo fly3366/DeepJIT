@@ -1,0 +1,44 @@
+import path from 'node:path';
+import os from 'node:os';
+/** Resolve the dsh home directory (~/.dsh by default). */
+export function resolveHome(ctx) {
+    try {
+        const raw = ctx.dshHomePath;
+        if (typeof raw === 'string' && raw)
+            return raw;
+        if (typeof raw === 'function') {
+            for (const arg of ['', '/']) {
+                try {
+                    const v = raw(arg);
+                    if (typeof v === 'string' && v)
+                        return v;
+                }
+                catch {
+                    // fall through
+                }
+            }
+            try {
+                const v = raw();
+                if (typeof v === 'string' && v)
+                    return v;
+            }
+            catch {
+                // fall through
+            }
+        }
+    }
+    catch {
+        // dshHomePath not injectable in this baseline; fall back to env/home
+    }
+    return process.env.DSH_HOME ?? path.join(os.homedir(), '.dsh');
+}
+export function resolveDirs(ctx, config) {
+    const home = resolveHome(ctx);
+    return {
+        home,
+        dbPath: config.dbPath || path.join(home, 'deepjit', 'deepjit.db'),
+        skillDir: config.skillDir || path.join(home, 'deepjit', 'skills'),
+        flowDir: config.flowDir || path.join(home, 'deepjit', 'flows'),
+    };
+}
+//# sourceMappingURL=paths.js.map

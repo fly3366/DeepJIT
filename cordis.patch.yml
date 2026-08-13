@@ -1,0 +1,16 @@
+# DeepJIT plugin bundle patch.
+# Install: dsh plugin --profile <name> add /path/to/deepjit   (pnpm link)
+#         or, once published: dsh plugin --profile <name> add deepjit
+- insert:
+    - id: deepjit
+      name: deepjit
+
+# Make the skill filesystem provider watch our isolated artifact directory so
+# generated skills hot-reload without touching ~/.dsh/skills or project dirs.
+# NOTE: this row overrides the base `skill-filesystem` row wholesale; if the
+# base bundle later adds other config here, re-merge them.
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  config:
+    customSkillDirs:
+      - !!js 'String(process.env.DSH_HOME || (process.env.HOME || "") + "/.dsh") + "/deepjit/skills"'
