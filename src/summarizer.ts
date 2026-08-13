@@ -1,0 +1,345 @@
+import { DeepJitStore } from './store.js'
+import type { ArtifactRow } from './store.js'
+
+export interface CompiledArtifact {
+  type: 'skill' | 'flow'
+  name: string
+  title: string
+  description: string
+  whenToUse?: string
+  content?: string
+  steps?: FlowStep[]
+  summary: string
+  sourcePatternId: number
+}
+
+export interface FlowStep {
+  tool: string
+  args: Record<string, unknown>
+  onError?: 'stop' | 'continue' | 'retry'
+  timeoutMs?: number
+}
+
+export interface SummarizerConfig {
+  llmProvider: string
+  llmModel: string
+  maxResultChars: number
+  minRepeat: number
+  topK: number
+}
+
+/** Minimal structural surface of ctx.llm so the module stays testable. */
+export interface LlmLike {
+  stream(options: {
+    provider: string
+    model: string
+    messages: unknown[]
+    temperature?: number
+    maxTokens?: number
+    signal?: AbortSignal
+  }): AsyncIterable<unknown>
+}
+
+export interface SessionPersistenceLike {
+  readFrom(id: unknown, fromSeq: number, signal?: AbortSignal): Promise<{ events: unknown[] }>
+}
+
+export interface PublishFn {
+  (artifact: Omit<CompiledArtifact, 'sourcePatternId'> & { sourcePatternId: number }): Promise<{
+    mode: 'filesystem' | 'runtime'
+    filePath: string
+    name: string
+  }>
+}
+
+const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+const SYSTEM_PROMPT = [
+  'You are the JIT compiler of an agent harness. Recurring tool workflows must be compiled into',
+  'reusable assets: either a "skill" (a markdown instruction guide the agent loads on demand) or a',
+  '"flow" (a strict JSON step template replayed by a flow executor with new inputs).',
+  'Rules:',
+  '- Output ONLY a single JSON object, no prose, no code fences.',
+  '- "type" is "skill" when the flow is procedural/heuristic (instructions matter more than calls);',
+  '  "flow" when it is a deterministic sequence of tool calls with clear argument mapping.',
+  '- "name" must match ^[a-z0-9]+(?:-[a-z0-9]+)*$ and be descriptive.',
+  '- For "flow", every "steps[].tool" must be one of the tools observed in the transcript.',
+  '- "steps[].args" values are template strings like "${input.x}" (bound to the flow input at',
+  '  execution) or literal JSON values.',
+  '- "onError" per step: "stop" (default), "continue", or "retry" (retries at most twice).',
+  '- Never invent tool names, arguments, or behavior not present in the transcript.',
+].join('\n')
+
+export class Summarizer {
+  private inFlight = false
+  private lastRunMs = 0
+
+  constructor(
+    private store: DeepJitStore,
+    private cfg: SummarizerConfig,
+    private llm: LlmLike,
+    private persistence: SessionPersistenceLike | undefined,
+    private publish: PublishFn,
+    private log: (msg: string) => void,
+  ) {}
+
+  get busy(): boolean {
+    return this.inFlight
+  }
+
+  /** How many uncompiled traces are waiting since the last mined watermark. */
+  pendingTraces(): number {
+    return this.store
+      .listSummarizableSessions()
+      .reduce((sum, s) => sum + (s.last_seq - s.last_summarized_seq), 0)
+  }
+
+  shouldRun(minNewTraces: number, minIntervalMs: number, now = Date.now()): boolean {
+    if (this.inFlight) return false
+    if (this.pendingTraces() < minNewTraces) return false
+    return now - this.lastRunMs >= minIntervalMs
+  }
+
+  async run(signal?: AbortSignal): Promise<number> {
+    if (this.inFlight) return 0
+    this.inFlight = true
+    this.lastRunMs = Date.now()
+    let compiled = 0
+    try {
+      const candidates = this.store.getHotPatterns('flow-seq', this.cfg.minRepeat, 2, this.cfg.topK)
+      for (const pattern of candidates) {
+        if (signal?.aborted) break
+        const transcript = await this.buildTranscript(pattern.sample_session, pattern.key, signal)
+        if (!transcript.tools.length) continue
+        try {
+          const output = await this.compile(pattern.key, pattern.count, transcript, signal)
+          const { mode, filePath, name: finalName } = await this.publish({ ...output, sourcePatternId: pattern.id })
+          this.store.insertArtifact({
+            type: output.type,
+            name: finalName,
+            title: output.title,
+            description: output.description,
+            file_path: filePath,
+            source_pattern_id: pattern.id,
+            status: 'active',
+            feedback_mode: mode,
+            llm_provider: this.cfg.llmProvider,
+            llm_model: this.cfg.llmModel,
+            summary: output.summary,
+          })
+          this.store.markPatternCompiled(pattern.id)
+          compiled++
+          this.log(`deepjit: compiled "${output.name}" (${output.type}) from pattern "${pattern.key}"`)
+        } catch (err) {
+          this.log(`deepjit: compile failed for pattern "${pattern.key}": ${(err as Error).message}`)
+        }
+      }
+    } finally {
+      this.inFlight = false
+    }
+    return compiled
+  }
+
+  private async buildTranscript(
+    sessionId: string,
+    key: string,
+    signal?: AbortSignal,
+  ): Promise<{ text: string; tools: string[] }> {
+    const names = key.split('>')
+    const toolRows = this.store.readTracesSince(sessionId, 0, ['tool'])
+    const seqs = toolRows.map((r) => {
+      try {
+        return { seq: r.seq, name: (JSON.parse(r.payload) as { name?: string }).name ?? '' }
+      } catch {
+        return { seq: r.seq, name: '' }
+      }
+    })
+    // locate the first window matching the pattern key
+    let start = 0
+    outer: for (let i = 0; i + names.length <= seqs.length; i++) {
+      for (let j = 0; j < names.length; j++) {
+        if (seqs[i + j]?.name !== names[j]) continue outer
+      }
+      start = i
+      break
+    }
+    const fromSeq = Math.max(0, (seqs[start]?.seq ?? 0) - 4)
+
+    const parts: string[] = []
+    let events: unknown[] = []
+    let drilled = false
+    if (this.persistence) {
+      try {
+        const { events: evs } = await this.persistence.readFrom(sessionId, fromSeq, signal)
+        events = evs
+        drilled = true
+      } catch {
+        drilled = false
+      }
+    }
+    if (drilled) {
+      for (const ev of events) {
+        const e = ev as { type?: string; data?: unknown }
+        if (e.type === 'user/message') {
+          const text = textOf(e.data)
+          if (text) parts.push(`USER: ${text}`)
+        } else if (e.type === 'tool/call') {
+          const d = e.data as { name?: string; arguments?: string }
+          parts.push(`TOOL_CALL: ${d?.name ?? ''} ${trim(d?.arguments ?? '', this.cfg.maxResultChars)}`)
+        } else if (e.type === 'tool/result') {
+          const d = e.data as { message?: unknown; error?: unknown }
+          parts.push(`TOOL_RESULT${d?.error ? ' (error)' : ''}: ${textOf(d?.message)}`)
+        }
+      }
+    } else {
+      for (const row of toolRows) {
+        try {
+          const p = JSON.parse(row.payload) as { name?: string; args?: string; result_text?: string }
+          parts.push(`TOOL_CALL: ${p.name ?? ''} ${trim(p.args ?? '', this.cfg.maxResultChars)}`)
+          if (p.result_text) parts.push(`TOOL_RESULT: ${p.result_text}`)
+        } catch {
+          // skip
+        }
+      }
+    }
+    const tools = [...new Set(seqs.map((s) => s.name).filter(Boolean))]
+    const text = parts.join('\n').slice(0, 12000)
+    return { text, tools }
+  }
+
+  private async compile(
+    patternKey: string,
+    count: number,
+    transcript: { text: string; tools: string[] },
+    signal?: AbortSignal,
+  ): Promise<CompiledArtifact> {
+    const userMsg = [
+      `Recurring workflow (observed ${count} times, tool sequence "${patternKey}").`,
+      `Known tool names: ${transcript.tools.join(', ')}.`,
+      '',
+      'Transcript excerpt:',
+      transcript.text,
+      '',
+      'Compile this workflow into a JSON artifact per the system rules.',
+    ].join('\n')
+
+    let lastError = ''
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const raw = await this.callLlm(
+        [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: lastError ? `${userMsg}\n\nPrevious output was rejected: ${lastError}\nOutput only valid JSON.` : userMsg },
+        ],
+        signal,
+      )
+      try {
+        const parsed = parseJson(raw)
+        const artifact = validateArtifact(parsed, transcript.tools)
+        return artifact
+      } catch (err) {
+        lastError = (err as Error).message
+      }
+    }
+    throw new Error(`LLM output not usable after retries: ${lastError}`)
+  }
+
+  private async callLlm(messages: unknown[], signal?: AbortSignal): Promise<string> {
+    if (!this.cfg.llmModel) throw new Error('llmModel is not configured')
+    let text = ''
+    for await (const chunk of this.llm.stream({
+      provider: this.cfg.llmProvider,
+      model: this.cfg.llmModel,
+      messages,
+      temperature: 0.2,
+      maxTokens: 2000,
+      signal,
+    })) {
+      const c = chunk as { type?: string; text?: string; data?: { text?: string } }
+      if (c.type === 'text-delta' && typeof c.text === 'string') text += c.text
+    }
+    if (!text) throw new Error('LLM returned no text')
+    return text
+  }
+}
+
+function textOf(value: unknown): string {
+  const msg = value as { content?: unknown } | null
+  const content = Array.isArray(msg?.content) ? msg.content : Array.isArray(value) ? value : null
+  if (!content) return ''
+  return (content as { type?: string; text?: string }[])
+    .filter((b) => b.type === 'text' && typeof b.text === 'string')
+    .map((b) => b.text)
+    .join('\n')
+}
+
+function trim(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max) + '…'
+}
+
+function parseJson(raw: string): unknown {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  return JSON.parse(cleaned)
+}
+
+function validateArtifact(parsed: unknown, knownTools: string[]): CompiledArtifact {
+  if (!parsed || typeof parsed !== 'object') throw new Error('not an object')
+  const p = parsed as Record<string, unknown>
+  const type = p.type
+  if (type !== 'skill' && type !== 'flow') throw new Error(`unknown type "${String(type)}"`)
+  const name = typeof p.name === 'string' ? p.name : ''
+  if (!KEBAB.test(name)) throw new Error(`invalid kebab-case name "${name}"`)
+  const description = typeof p.description === 'string' ? p.description : ''
+  if (!description) throw new Error('missing description')
+  const title = typeof p.title === 'string' ? p.title : name
+
+  if (type === 'skill') {
+    const content = typeof p.content === 'string' && p.content.trim() ? p.content.trim() : ''
+    if (!content) throw new Error('skill missing content')
+    return {
+      type,
+      name,
+      title,
+      description,
+      whenToUse: typeof p.whenToUse === 'string' ? p.whenToUse : undefined,
+      content,
+      summary: `JIT-compiled from recurring workflow; description: ${description}`,
+      sourcePatternId: -1,
+    }
+  }
+
+  const stepsRaw = Array.isArray(p.steps) ? p.steps : []
+  if (stepsRaw.length === 0) throw new Error('flow missing steps')
+  const known = new Set(knownTools)
+  const steps: FlowStep[] = []
+  for (const raw of stepsRaw) {
+    const s = raw as Record<string, unknown>
+    const tool = typeof s.tool === 'string' ? s.tool : ''
+    if (!tool) throw new Error(`flow step missing tool`)
+    if (!known.has(tool)) throw new Error(`flow step references unknown tool "${tool}"`)
+    const onError = s.onError
+    if (onError !== undefined && onError !== 'stop' && onError !== 'continue' && onError !== 'retry') {
+      throw new Error(`invalid onError "${String(onError)}"`)
+    }
+    const timeoutMs = typeof s.timeoutMs === 'number' && s.timeoutMs > 0 ? s.timeoutMs : undefined
+    steps.push({
+      tool,
+      args: s.args && typeof s.args === 'object' && !Array.isArray(s.args)
+        ? (s.args as Record<string, unknown>)
+        : {},
+      onError: onError as FlowStep['onError'],
+      timeoutMs,
+    })
+  }
+  return {
+    type,
+    name,
+    title,
+    description,
+    whenToUse: typeof p.whenToUse === 'string' ? p.whenToUse : undefined,
+    steps,
+    summary: `JIT-compiled flow (${steps.length} steps) from recurring workflow; description: ${description}`,
+    sourcePatternId: -1,
+  }
+}
+
+export type { ArtifactRow }
