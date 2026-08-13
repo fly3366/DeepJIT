@@ -23,6 +23,8 @@ session/event + tools/result ──► SQLite 紧凑 trace 索引（~/.dsh/deepj
 - **隔离**：所有产物都在 `~/.dsh/deepjit/`，不碰顶层 `~/.dsh/skills/` 与项目 skill 目录；skill 名统一 `deepjit-` 前缀。
 - **自动生效**：skill 写文件即被 skill-filesystem 的 watcher 热发现（机制 A）；若 A 不可用则运行时 `ctx.skills.register` 兜底（机制 B）。
 - **权限不变**：flow 的每一步通过 `ctx.tools.execute` 执行，照常走 `tools/pre-execute` 权限闸门。
+- **跟随用户模型**：JIT 编译自动复用当前会话实际使用的 provider/model（从 `request/context` 事件捕获），`llmProvider`/`llmModel` 仅作 fallback，无需额外配置。
+- **忽略自身**：deepjit 自己的工具（`deepjit_flow`/`deepjit_status`）不参与 trace 采集与热点挖掘，flow 模板禁止包含 `deepjit_*` 步骤——JIT 永远不会编译自己，避免自噬循环。编译调用的 LLM 请求走插件进程内通道，不产生 session 事件，天然隔离。
 
 ## 安装
 
@@ -50,10 +52,9 @@ dsh plugin --profile web add deepjit
 | `flushBatchSize` | `200` | 批写行数上限 |
 | `maxResultChars` | `4000` | 工具结果/参数截断长度 |
 | `summarizeIntervalMs` | `600000` | JIT 周期（挖掘+编译） |
-| `minNewTraces` | `20` | 触发编译的最小新增 trace 数 |
 | `minIntervalMs` | `300000` | 两次编译的最小间隔 |
-| `llmProvider` | `deepseek-official` | 总结用 provider |
-| `llmModel` | （必填） | 总结用模型，如 `deepseek-chat` |
+| `llmProvider` | `deepseek-official` | 编译用 provider（fallback，默认跟随会话实际配置） |
+| `llmModel` | （空） | 编译用模型（fallback；留空则自动复用会话当前模型） |
 | `minRepeat` | `3` | 热点序列最少出现次数 |
 | `ngramMin` / `ngramMax` | `2` / `4` | 序列窗口 |
 | `topK` | `5` | 每轮最多编译的候选数 |

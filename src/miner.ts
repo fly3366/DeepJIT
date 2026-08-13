@@ -54,7 +54,7 @@ export function mineHotPatterns(store: DeepJitStore, cfg: MinerConfig): void {
           return ''
         }
       })
-      .filter(Boolean)
+      .filter((name) => name && !name.startsWith('deepjit_'))
 
     // n-gram counting for this session
     const local = new Map<string, number>()

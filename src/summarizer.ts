@@ -34,8 +34,10 @@ export interface LlmLike {
     provider: string
     model: string
     messages: unknown[]
+    system?: string
     temperature?: number
     maxTokens?: number
+    sessionId?: unknown
     signal?: AbortSignal
   }): AsyncIterable<unknown>
 }
@@ -94,10 +96,11 @@ export class Summarizer {
       .reduce((sum, s) => sum + (s.last_seq - s.last_summarized_seq), 0)
   }
 
-  shouldRun(minNewTraces: number, minIntervalMs: number, now = Date.now()): boolean {
+  shouldRun(minIntervalMs: number, now = Date.now()): boolean {
     if (this.inFlight) return false
-    if (this.pendingTraces() < minNewTraces) return false
-    return now - this.lastRunMs >= minIntervalMs
+    if (now - this.lastRunMs < minIntervalMs) return false
+    const candidates = this.store.getHotPatterns('flow-seq', this.cfg.minRepeat, 2, 1)
+    return candidates.length > 0
   }
 
   async run(signal?: AbortSignal): Promise<number> {
@@ -112,7 +115,7 @@ export class Summarizer {
         const transcript = await this.buildTranscript(pattern.sample_session, pattern.key, signal)
         if (!transcript.tools.length) continue
         try {
-          const output = await this.compile(pattern.key, pattern.count, transcript, signal)
+          const output = await this.compile(pattern.key, pattern.count, transcript, pattern.sample_session, signal)
           const { mode, filePath, name: finalName } = await this.publish({ ...output, sourcePatternId: pattern.id })
           this.store.insertArtifact({
             type: output.type,
@@ -211,6 +214,7 @@ export class Summarizer {
     patternKey: string,
     count: number,
     transcript: { text: string; tools: string[] },
+    sampleSession: string,
     signal?: AbortSignal,
   ): Promise<CompiledArtifact> {
     const userMsg = [
@@ -223,13 +227,26 @@ export class Summarizer {
       'Compile this workflow into a JSON artifact per the system rules.',
     ].join('\n')
 
+    // Follow the user's configured model (captured from request/context events);
+    // the plugin config only provides a fallback when no session has run yet.
+    const sessionContext = this.store.latestSessionContext()
+    const provider = sessionContext.provider ?? this.cfg.llmProvider
+    const model = sessionContext.model ?? this.cfg.llmModel
+    if (!model) throw new Error('no model available: configure llmModel or run a session first')
+
     let lastError = ''
     for (let attempt = 0; attempt < 2; attempt++) {
+      const userContent = lastError
+        ? `${userMsg}\n\nPrevious output was rejected: ${lastError}\nOutput only valid JSON.`
+        : userMsg
       const raw = await this.callLlm(
         [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: lastError ? `${userMsg}\n\nPrevious output was rejected: ${lastError}\nOutput only valid JSON.` : userMsg },
+          { role: 'system', content: [{ type: 'text', text: SYSTEM_PROMPT }] },
+          { role: 'user', content: [{ type: 'text', text: userContent }] },
         ],
+        provider,
+        model,
+        sampleSession,
         signal,
       )
       try {
@@ -243,22 +260,40 @@ export class Summarizer {
     throw new Error(`LLM output not usable after retries: ${lastError}`)
   }
 
-  private async callLlm(messages: unknown[], signal?: AbortSignal): Promise<string> {
-    if (!this.cfg.llmModel) throw new Error('llmModel is not configured')
-    let text = ''
-    for await (const chunk of this.llm.stream({
-      provider: this.cfg.llmProvider,
-      model: this.cfg.llmModel,
-      messages,
-      temperature: 0.2,
-      maxTokens: 2000,
-      signal,
-    })) {
-      const c = chunk as { type?: string; text?: string; data?: { text?: string } }
-      if (c.type === 'text-delta' && typeof c.text === 'string') text += c.text
+  private async callLlm(
+    messages: unknown[],
+    provider: string,
+    model: string,
+    sessionId: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    let lastError: unknown
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 2000))
+      let text = ''
+      try {
+        for await (const chunk of this.llm.stream({
+          provider,
+          model,
+          messages,
+          temperature: 0.2,
+          maxTokens: 4000,
+          sessionId,
+          signal,
+        })) {
+          const c = chunk as { type?: string; text?: string; reason?: unknown }
+          if (c.type === 'finish') this.log(`deepjit: llm finish ${JSON.stringify(c.reason).slice(0, 500)}`)
+          if (c.type === 'text-delta' && typeof c.text === 'string') text += c.text
+        }
+      } catch (err) {
+        lastError = err
+        this.log(`deepjit: llm stream attempt ${attempt + 1} threw: ${(err as Error).message}`)
+        continue
+      }
+      if (text) return text
+      lastError = new Error('LLM returned no text')
     }
-    if (!text) throw new Error('LLM returned no text')
-    return text
+    throw lastError instanceof Error ? lastError : new Error(String(lastError))
   }
 }
 

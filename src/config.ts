@@ -7,7 +7,6 @@ export interface DeepJitConfig {
   flushBatchSize: number
   maxResultChars: number
   summarizeIntervalMs: number
-  minNewTraces: number
   minIntervalMs: number
   llmProvider: string
   llmModel: string
@@ -29,7 +28,6 @@ export const Config: Schema<DeepJitConfig> = Schema.object({
   flushBatchSize: Schema.number().default(200),
   maxResultChars: Schema.number().default(4000),
   summarizeIntervalMs: Schema.number().default(10 * 60 * 1000),
-  minNewTraces: Schema.number().default(20),
   minIntervalMs: Schema.number().default(5 * 60 * 1000),
   llmProvider: Schema.string().default('deepseek-official'),
   llmModel: Schema.string().default(''),

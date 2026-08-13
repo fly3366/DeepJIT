@@ -210,6 +210,16 @@ export class DeepJitStore {
       .all() as unknown as { id: string; last_seq: number; last_summarized_seq: number }[]
   }
 
+  /** Most recently observed provider/model across sessions (from request/context events). */
+  latestSessionContext(): { provider?: string; model?: string } {
+    const row = this.db
+      .prepare(
+        'SELECT provider, model FROM sessions WHERE provider IS NOT NULL OR model IS NOT NULL ORDER BY started_ms DESC LIMIT 1',
+      )
+      .get() as { provider: string | null; model: string | null } | undefined
+    return { provider: row?.provider ?? undefined, model: row?.model ?? undefined }
+  }
+
   upsertPattern(
     kind: string,
     key: string,

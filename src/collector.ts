@@ -6,6 +6,13 @@ interface PendingCall {
   args: string
 }
 
+/** deepjit's own tools are excluded from traces to prevent JIT self-compilation loops. */
+const JIT_TOOL_PREFIX = 'deepjit_'
+
+function isJitTool(name: string): boolean {
+  return name.startsWith(JIT_TOOL_PREFIX)
+}
+
 interface BufferRow {
   row: TraceRow
   /** set once the raw tool value (from tools/result) is attached */
@@ -27,14 +34,19 @@ function stringify(value: unknown, maxChars: number): string {
 }
 
 function textOfMessage(message: unknown, maxChars: number): string {
-  // ContentBlock[] or { content: ContentBlock[] }; text blocks only
+  // Message or { content: ContentBlock[] }; text blocks may be nested inside
+  // tool-result blocks, so collect recursively.
   const content = Array.isArray(message) ? message : (message as { content?: unknown })?.content
   if (!Array.isArray(content)) return ''
   const parts: string[] = []
-  for (const block of content) {
-    const b = block as { type?: string; text?: string }
-    if (b.type === 'text' && typeof b.text === 'string') parts.push(b.text)
+  const walk = (blocks: unknown[]) => {
+    for (const block of blocks) {
+      const b = block as { type?: string; text?: string; content?: unknown }
+      if (b.type === 'text' && typeof b.text === 'string') parts.push(b.text)
+      if (Array.isArray(b.content)) walk(b.content)
+    }
   }
+  walk(content)
   return truncate(parts.join('\n'), maxChars)
 }
 
@@ -97,6 +109,7 @@ export class TraceCollector {
       case 'tool/call': {
         const data = env.data as { callId?: string; name?: string; arguments?: string; turn?: number; step?: number }
         if (!data.callId) break
+        if (data.name && isJitTool(data.name)) break
         this.pendingCalls.set(data.callId, {
           tsMs: time,
           name: String(data.name ?? ''),
@@ -105,16 +118,24 @@ export class TraceCollector {
         break
       }
       case 'tool/result': {
-        const data = env.data as { callId?: string; turn?: number; step?: number; message?: unknown; error?: unknown }
-        if (!data.callId) break
-        const call = this.pendingCalls.get(data.callId)
-        this.pendingCalls.delete(data.callId)
+        const data = env.data as {
+          callId?: string
+          turn?: number
+          step?: number
+          message?: { source?: { callId?: string }; content?: unknown }
+          error?: unknown
+        }
+        const callId = data.callId ?? data.message?.source?.callId
+        if (!callId) break
+        const call = this.pendingCalls.get(callId)
+        this.pendingCalls.delete(callId)
+        if (!call || isJitTool(call.name)) break
         const text = textOfMessage(data.message, this.maxResultChars)
-        const raw = this.rawValues.get(data.callId)
-        this.rawValues.delete(data.callId)
+        const raw = this.rawValues.get(callId)
+        this.rawValues.delete(callId)
         const payload: Record<string, unknown> = {
           name: call?.name ?? '',
-          callId: data.callId,
+          callId,
           args: call?.args ?? '',
           result_ok: !data.error,
           result_text: text,
@@ -131,7 +152,7 @@ export class TraceCollector {
           payload: JSON.stringify(payload),
         }
         const entry = this.push(row)
-        this.rowsByCallId.set(data.callId, entry)
+        this.rowsByCallId.set(callId, entry)
         break
       }
       case 'turn/start':

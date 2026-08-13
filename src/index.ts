@@ -1,3 +1,5 @@
+import { appendFileSync } from 'node:fs'
+import { join as pathJoin } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import '@deepseek-ai/dsh-session'
@@ -31,18 +33,36 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     config.flushBatchSize,
   )
 
-  const log = (msg: string) => (ctx as unknown as { logger?: { info: (m: string) => void } }).logger?.info(msg)
+  const log = (msg: string) => {
+    ;(ctx as unknown as { logger?: { info: (m: string) => void } }).logger?.info(msg)
+    try {
+      appendFileSync(pathJoin(dirs.home, 'deepjit', 'deepjit.log'), `${new Date().toISOString()} ${msg}\n`)
+    } catch {
+      // logging is best-effort
+    }
+  }
 
-  const skills = (ctx as unknown as {
+  const skillsService = (ctx as unknown as {
     skills?: {
       register(s: { name: string; description: string; whenToUse?: string; content: string }): () => void
       get(name: string): Promise<unknown>
-      on(event: string, h: () => void): (() => void) | void
     }
   }).skills
+  const skillsAdapter = skillsService
+    ? {
+        register: (s: { name: string; description: string; whenToUse?: string; content: string }) => skillsService.register(s),
+        get: (name: string) => skillsService.get(name),
+        on: (event: string, handler: () => void) => {
+          const off = (ctx as unknown as { on: (e: string, h: () => void) => unknown }).on(event, handler)
+          return () => {
+            if (typeof off === 'function') off()
+          }
+        },
+      }
+    : { register: () => () => {}, get: async () => undefined, on: () => () => {} }
   const feedback = new ArtifactFeedback(
     { skillDir: dirs.skillDir, flowDir: dirs.flowDir },
-    skills ?? { register: () => () => {}, get: async () => undefined, on: () => () => {} },
+    skillsAdapter,
     log,
   )
 
@@ -92,18 +112,21 @@ export function apply(ctx: Context, config: DeepJitConfig) {
 
   // JIT cycle: mine hot paths, then compile the strongest ones
   ctx.interval(() => {
-    const eligible = summarizer.shouldRun(config.minNewTraces, config.minIntervalMs)
     mineHotPatterns(store, config)
-    if (!eligible) return
-    void summarizer.run()
+    if (!summarizer.shouldRun(config.minIntervalMs)) return
+    void summarizer.run().catch((err) => log(`deepjit: jit run failed: ${(err as Error).message}`))
   }, config.summarizeIntervalMs)
 
   // tools exposed to agents
   ;(ctx as unknown as { tools: { register(d: object): void } }).tools.register(flowExecutor.toolDefinition)
   ;(ctx as unknown as { tools: { register(d: object): void } }).tools.register(statusTool.toolDefinition)
 
-  ctx.effect(() => () => {
+  ctx.effect(() => async () => {
     collector.flushSync()
+    const deadline = Date.now() + 10_000
+    while (summarizer.busy && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 200))
+    }
     feedback.disposeAll()
     store.close()
   })

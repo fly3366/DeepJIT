@@ -122,6 +122,9 @@ export class FlowExecutor {
     if (!Array.isArray(template.steps) || template.steps.length === 0) {
       throw new Error(`flow "${flowName}" has no steps`)
     }
+    if (template.steps.some((s) => s.tool.startsWith('deepjit_'))) {
+      throw new Error(`flow "${flowName}" references deepjit's own tools; recursive JIT flows are not allowed`)
+    }
 
     const outcomes: StepOutcome[] = []
     for (let i = 0; i < template.steps.length; i++) {
