@@ -26,17 +26,18 @@ session/event + tools/result ──► SQLite 紧凑 trace 索引（~/.dsh/deepj
 
 ## 安装
 
-### 开发模式（本地加载）
+### 开发模式（本地 bundle）
 
 ```sh
-npx @deepseek-ai/dsh web --patch ./cordis.patch.yml
+npm install && npm run build
+dsh plugin --profile headless add /path/to/deepjit   # 或 web
+dsh --profile headless --dump-config                 # 验证 deepjit 层已加载
 ```
 
-### Bundle 模式（安装到 profile）
+### 发布后
 
 ```sh
-dsh plugin --profile web add .          # 从本目录安装
-dsh --profile web --dump-config         # 验证 deepjit 层已加载
+dsh plugin --profile web add deepjit
 ```
 
 ## 配置（cordis.patch.yml 或 profile patch 中覆盖）
