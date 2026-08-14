@@ -113,6 +113,7 @@ export class TraceCollector {
       case 'tool/call': {
         const data = env.data as { callId?: string; name?: string; arguments?: string; turn?: number; step?: number }
         if (!data.callId) break
+        this.recordArtifactUsage(data.name, data.arguments)
         if (data.name && isJitTool(data.name)) break
         this.pendingCalls.set(data.callId, {
           tsMs: time,
@@ -207,6 +208,22 @@ export class TraceCollector {
       }
     } else {
       this.rawValues.set(e.callId, value)
+    }
+  }
+
+  /** Track invocation of compiled artifacts (separate from mining) for GC. */
+  private recordArtifactUsage(name: string | undefined, argsJson: string | undefined): void {
+    if (!name) return
+    try {
+      if (name === 'deepjit_flow') {
+        const flow = (JSON.parse(argsJson ?? '{}') as { flow?: unknown }).flow
+        if (typeof flow === 'string' && flow) this.store.recordUsage(flow)
+      } else if (name === 'skill') {
+        const skill = (JSON.parse(argsJson ?? '{}') as { name?: unknown }).name
+        if (typeof skill === 'string' && skill.startsWith('deepjit-')) this.store.recordUsage(skill)
+      }
+    } catch {
+      // usage tracking is best-effort
     }
   }
 

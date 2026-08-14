@@ -41,6 +41,8 @@ export interface ArtifactRow {
   summary: string | null
   created_ms: number
   updated_ms: number
+  use_count: number
+  last_used_ms: number | null
 }
 
 const SCHEMA_V1 = `
@@ -93,7 +95,9 @@ CREATE TABLE IF NOT EXISTS artifacts (
   llm_model TEXT,
   summary TEXT,
   created_ms INTEGER,
-  updated_ms INTEGER
+  updated_ms INTEGER,
+  use_count INTEGER DEFAULT 0,
+  last_used_ms INTEGER
 );
 `
 
@@ -111,12 +115,16 @@ export class DeepJitStore {
   }
 
   private migrate(): void {
-    const version = this.db.prepare('PRAGMA user_version').get() as { user_version: number }
-    if (version.user_version >= 1) return
+    const version = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
+    if (version >= 2) return
     this.db.exec('BEGIN')
     try {
       this.db.exec(SCHEMA_V1)
-      this.db.exec('PRAGMA user_version=1')
+      if (version === 1) {
+        this.db.exec('ALTER TABLE artifacts ADD COLUMN use_count INTEGER DEFAULT 0')
+        this.db.exec('ALTER TABLE artifacts ADD COLUMN last_used_ms INTEGER')
+      }
+      this.db.exec('PRAGMA user_version=2')
       this.db.exec('COMMIT')
     } catch (err) {
       this.db.exec('ROLLBACK')
@@ -328,6 +336,30 @@ export class DeepJitStore {
 
   deleteArtifact(name: string): void {
     this.db.prepare('DELETE FROM artifacts WHERE name = ?').run(name)
+  }
+
+  /** Bump usage counters when an artifact is invoked (skill load or flow replay). */
+  recordUsage(name: string, now = Date.now()): void {
+    this.db
+      .prepare('UPDATE artifacts SET use_count = use_count + 1, last_used_ms = ? WHERE name = ?')
+      .run(now, name)
+  }
+
+  /**
+   * Disable active artifacts that are old enough (past the protection window)
+   * and unused for longer than the stale window. Returns the disabled names.
+   */
+  gcStale(now: number, staleMs: number, protectMs: number): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT name FROM artifacts
+         WHERE status = 'active'
+           AND created_ms <= ?
+           AND COALESCE(last_used_ms, created_ms) <= ?`,
+      )
+      .all(now - protectMs, now - staleMs) as { name: string }[]
+    for (const r of rows) this.updateArtifactStatus(r.name, 'disabled')
+    return rows.map((r) => r.name)
   }
 
   stats(): { traces: number; sessions: number; patterns: number; artifacts: number } {

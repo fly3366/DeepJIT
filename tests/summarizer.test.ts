@@ -49,7 +49,7 @@ test('summarizer: compiles a flow artifact from a hot pattern', async () => {
   )
   const n = await s.run()
   assert.equal(n, 1)
-  const artifact = store.getArtifact('summarize-repo')
+  const artifact = store.getArtifact('deepjit-summarize-repo')
   assert.ok(artifact, 'artifact row exists')
   assert.equal(artifact!.type, 'flow')
   assert.equal(store.getHotPatterns('flow-seq', 3, 2, 10).length, 0, 'pattern marked compiled')
@@ -77,6 +77,37 @@ test('summarizer: rejects invalid LLM output and retries', async () => {
   const n = await s.run()
   assert.equal(n, 0, 'no artifact for invalid outputs')
   assert.equal(calls, 2, 'retried once')
+  store.close()
+})
+
+test('summarizer: same-name collision defers to LLM compare (skip keeps existing)', async () => {
+  const store = new DeepJitStore(':memory:')
+  seedHotPattern(store)
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'deepjit-test-'))
+  const existingFile = path.join(dir, 'deepjit-summarize-repo.json')
+  writeFileSync(existingFile, '{"name":"deepjit-summarize-repo","steps":[]}')
+  store.insertArtifact({ type: 'flow', name: 'deepjit-summarize-repo', description: 'old', file_path: existingFile, status: 'active' })
+
+  const scripted = [
+    // compile output (same name as existing)
+    JSON.stringify({ type: 'flow', name: 'summarize-repo', description: 'new', steps: [{ tool: 'read_file', args: {} }] }),
+    // compare decision
+    JSON.stringify({ action: 'skip' }),
+  ]
+  let i = 0
+  const s = new Summarizer(
+    store,
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6 },
+    { async *stream(): AsyncIterable<unknown> { yield { type: 'text-delta', text: scripted[i++] ?? '{"action":"skip"}' } } },
+    undefined,
+    async () => ({ mode: 'filesystem' as const, filePath: existingFile, name: 'deepjit-summarize-repo' }),
+    () => {},
+  )
+  const n = await s.run()
+  assert.equal(n, 0, 'skip means no new artifact published')
+  assert.equal(store.getArtifact('deepjit-summarize-repo')!.description, 'old', 'existing not overwritten')
+  assert.equal(store.getHotPatterns('flow-seq', 3, 2, 10).length, 0, 'pattern marked compiled to stop churn')
+  rmSync(dir, { recursive: true, force: true })
   store.close()
 })
 
@@ -128,7 +159,7 @@ test('summarizer: drills down via sessionPersistence when available', async () =
   const n = await s.run()
   assert.equal(n, 1)
   assert.equal(drilled, true)
-  const artifact = store.getArtifact('repo-guide')
+  const artifact = store.getArtifact('deepjit-repo-guide')
   assert.equal(artifact!.type, 'skill')
   store.close()
 })

@@ -20,6 +20,9 @@ export interface DeepJitConfig {
   flowDir: string
   feedbackMode: 'auto' | 'runtime'
   locale: 'auto' | 'en' | 'zh'
+  gcEnabled: boolean
+  gcStaleMs: number
+  gcProtectMs: number
   stepTimeoutMs: number
   flowTimeoutMs: number
 }
@@ -44,6 +47,9 @@ export const Config: Schema<DeepJitConfig> = Schema.object({
   flowDir: Schema.string().default(''),
   feedbackMode: Schema.union(['auto', 'runtime']).default('auto'),
   locale: Schema.union(['auto', 'en', 'zh']).default('auto'),
+  gcEnabled: Schema.boolean().default(true),
+  gcStaleMs: Schema.number().default(14 * 24 * 3600 * 1000),
+  gcProtectMs: Schema.number().default(24 * 3600 * 1000),
   stepTimeoutMs: Schema.number().default(120_000),
   flowTimeoutMs: Schema.number().default(600_000),
 })

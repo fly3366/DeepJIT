@@ -93,6 +93,11 @@ export function apply(ctx, config) {
     // JIT cycle: mine hot paths, then compile the strongest ones
     ctx.interval(() => {
         mineHotPatterns(store, config);
+        if (config.gcEnabled) {
+            const removed = store.gcStale(Date.now(), config.gcStaleMs, config.gcProtectMs);
+            for (const name of removed)
+                log(`deepjit: gc disabled stale artifact ${name}`);
+        }
         if (!summarizer.shouldRun(config.minIntervalMs))
             return;
         void summarizer.run().catch((err) => log(`deepjit: jit run failed: ${err.message}`));

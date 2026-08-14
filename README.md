@@ -20,6 +20,12 @@ turn them into fast, reusable assets.
 traces ──► SQLite ──► hot-path mining ──► LLM compile ──► skills / flows ──► dsh
 ```
 
+- Artifacts live under `~/.dsh/deepjit/` and hot-reload into dsh.
+- JIT never compiles its own tools, so it can't feed on itself.
+- Lifecycle: flows may nest (`deepjit_flow` steps, depth-limited); same-name
+  collisions defer to an LLM compare (update vs skip); a GC disables stale,
+  unused artifacts after a grace period.
+
 ## Compatibility
 
 | Item | Value |
@@ -66,6 +72,7 @@ Override in `cordis.patch.yml` or a profile patch. Key options (full list in
 | `minRepeat` | `3` | min occurrences for a hot sequence |
 | `minFlowSteps` | `2` | min tool steps a flow must have to be compiled |
 | `minPatternValue` | `6` | min value score (`count × steps`) to justify a compile |
+| `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14d / 1d | GC: disable artifacts unused beyond `gcStaleMs` after a `gcProtectMs` grace |
 | `llmProvider` / `llmModel` | `deepseek-official` / (session) | compile model; empty = reuse session model |
 | `locale` | `auto` | `en` / `zh` / `auto` (dsh locale → `LANG` → English) |
 

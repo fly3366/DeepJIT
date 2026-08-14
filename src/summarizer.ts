@@ -1,5 +1,9 @@
+import { readFileSync, existsSync } from 'node:fs'
 import { DeepJitStore } from './store.ts'
 import type { ArtifactRow, PatternRow } from './store.ts'
+
+/** Prefix applied to every published artifact name. */
+export const SKILL_PREFIX = 'deepjit-'
 
 export interface CompiledArtifact {
   type: 'skill' | 'flow'
@@ -156,7 +160,17 @@ export class Summarizer {
         if (!transcript.tools.length) continue
         try {
           const output = await this.compile(pattern.key, pattern.count, transcript, pattern.sample_session, signal)
-          const { mode, filePath, name: finalName } = await this.publish({ ...output, sourcePatternId: pattern.id })
+          const finalName = `${SKILL_PREFIX}${output.name}`
+          const existing = this.store.getArtifact(finalName)
+          if (existing) {
+            const decision = await this.decideUpdate(existing, output, signal)
+            if (decision === 'skip') {
+              this.log(`deepjit: name collision on "${finalName}", LLM chose to keep existing`)
+              this.store.markPatternCompiled(pattern.id)
+              continue
+            }
+          }
+          const { mode, filePath, name: publishedName } = await this.publish({ ...output, sourcePatternId: pattern.id })
           this.store.insertArtifact({
             type: output.type,
             name: finalName,
@@ -335,6 +349,56 @@ export class Summarizer {
     }
     throw lastError instanceof Error ? lastError : new Error(String(lastError))
   }
+
+  /**
+   * On a same-name collision, let the model compare the existing artifact with
+   * the new one and decide whether to update. Defaults to 'skip' on any
+   * failure so we never overwrite by accident.
+   */
+  private async decideUpdate(
+    existing: ArtifactRow,
+    output: CompiledArtifact,
+    signal?: AbortSignal,
+  ): Promise<'update' | 'skip'> {
+    let existingContent = ''
+    try {
+      if (existsSync(existing.file_path)) existingContent = readFileSync(existing.file_path, 'utf8')
+    } catch {
+      existingContent = ''
+    }
+    const newContent = output.type === 'skill'
+      ? (output.content ?? '')
+      : JSON.stringify(output.steps ?? [])
+    const sessionContext = this.store.latestSessionContext()
+    const provider = sessionContext.provider ?? this.cfg.llmProvider
+    const model = sessionContext.model ?? this.cfg.llmModel
+    if (!model) return 'skip'
+    const prompt = [
+      `An existing compiled artifact named "${existing.name}" already exists.`,
+      '',
+      'EXISTING:',
+      existingContent.slice(0, 3000),
+      '',
+      'NEW CANDIDATE:',
+      newContent.slice(0, 3000),
+      '',
+      'Do they describe the SAME workflow, and is the NEW one meaningfully better or more current?',
+      'Answer with a single JSON object: {"action":"update"} to replace, or {"action":"skip"} to keep the existing.',
+    ].join('\n')
+    try {
+      const raw = await this.callLlm(
+        [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+        provider,
+        model,
+        existing.name,
+        signal,
+      )
+      const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()) as { action?: string }
+      return parsed.action === 'update' ? 'update' : 'skip'
+    } catch {
+      return 'skip'
+    }
+  }
 }
 
 function textOf(value: unknown): string {
@@ -390,7 +454,10 @@ function validateArtifact(parsed: unknown, knownTools: string[]): CompiledArtifa
     const s = raw as Record<string, unknown>
     const tool = typeof s.tool === 'string' ? s.tool : ''
     if (!tool) throw new Error(`flow step missing tool`)
-    if (!known.has(tool)) throw new Error(`flow step references unknown tool "${tool}"`)
+    if (tool === 'deepjit_status') throw new Error(`flow step may not invoke deepjit_status`)
+    if (!known.has(tool) && tool !== 'deepjit_flow') {
+      throw new Error(`flow step references unknown tool "${tool}"`)
+    }
     const onError = s.onError
     if (onError !== undefined && onError !== 'stop' && onError !== 'continue' && onError !== 'retry') {
       throw new Error(`invalid onError "${String(onError)}"`)

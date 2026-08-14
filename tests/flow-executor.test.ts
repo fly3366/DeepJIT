@@ -97,3 +97,40 @@ test('flow executor: rejects unknown or disabled flows', async () => {
   rmSync(flowDir, { recursive: true, force: true })
   store.close()
 })
+
+test('flow executor: supports nested deepjit_flow with child input', async () => {
+  const store = new DeepJitStore(':memory:')
+  const flowDir = mkdtempSync(path.join(os.tmpdir(), 'deepjit-flow-'))
+  setup(store, flowDir, 'deepjit-child', [{ tool: 'echo', args: { msg: '${input.msg}' } }])
+  setup(store, flowDir, 'deepjit-parent', [
+    { tool: 'deepjit_flow', args: { flow: 'deepjit-child', args: { msg: '${input.msg}' } }, onError: 'stop' },
+  ])
+  const seen: unknown[] = []
+  const executor = new FlowExecutor(
+    flowDir,
+    store,
+    async (input) => { seen.push(input.arguments); return { isError: false, value: { ok: true }, content: [{ type: 'text', text: 'ok' }] } },
+    (uuid) => uuid,
+    1000,
+    500,
+    () => {},
+  )
+  const res = await executor.run('deepjit-parent', { msg: 'hi' }, undefined, new AbortController().signal)
+  assert.equal(res.ok, true)
+  assert.deepEqual(seen, [{ msg: 'hi' }], 'child received the nested input')
+  rmSync(flowDir, { recursive: true, force: true })
+  store.close()
+})
+
+test('flow executor: rejects deepjit_status steps', async () => {
+  const store = new DeepJitStore(':memory:')
+  const flowDir = mkdtempSync(path.join(os.tmpdir(), 'deepjit-flow-'))
+  setup(store, flowDir, 'deepjit-bad', [{ tool: 'deepjit_status', args: { action: 'list' } }])
+  const executor = new FlowExecutor(flowDir, store, async () => ({ isError: false, value: null }), (u) => u, 1000, 500, () => {})
+  await assert.rejects(
+    () => executor.run('deepjit-bad', {}, undefined, new AbortController().signal),
+    /recursive|deepjit/,
+  )
+  rmSync(flowDir, { recursive: true, force: true })
+  store.close()
+})

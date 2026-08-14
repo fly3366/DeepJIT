@@ -80,7 +80,8 @@ export class FlowExecutor {
             },
         };
     }
-    async run(flowName, input, agent, signal) {
+    static MAX_DEPTH = 3;
+    async run(flowName, input, agent, signal, depth = 0) {
         const artifact = this.store.getArtifact(flowName);
         if (!artifact || artifact.type !== 'flow') {
             throw new Error(t('flow.unknown', { name: flowName }));
@@ -91,7 +92,7 @@ export class FlowExecutor {
         if (!Array.isArray(template.steps) || template.steps.length === 0) {
             throw new Error(t('flow.noSteps', { name: flowName }));
         }
-        if (template.steps.some((s) => s.tool.startsWith('deepjit_'))) {
+        if (template.steps.some((s) => s.tool === 'deepjit_status')) {
             throw new Error(t('flow.recursive', { name: flowName }));
         }
         const outcomes = [];
@@ -100,6 +101,27 @@ export class FlowExecutor {
                 break;
             const step = template.steps[i];
             const resolvedArgs = resolveValue(step.args ?? {}, input);
+            // Nested flow: recurse with the step's args as the child input, depth-limited.
+            if (step.tool === 'deepjit_flow') {
+                if (depth + 1 > FlowExecutor.MAX_DEPTH) {
+                    outcomes.push({ index: i + 1, tool: step.tool, ok: false, error: t('flow.recursive', { name: flowName }) });
+                    break;
+                }
+                const nestedFlow = String(resolvedArgs.flow ?? '');
+                const nestedInput = (resolvedArgs.args ?? {});
+                try {
+                    const nested = await this.run(nestedFlow, nestedInput, agent, signal, depth + 1);
+                    outcomes.push({ index: i + 1, tool: `${step.tool}:${nestedFlow}`, ok: nested.ok, summary: `${nested.steps.length} nested steps` });
+                    if (!nested.ok && step.onError === 'stop')
+                        break;
+                }
+                catch (err) {
+                    outcomes.push({ index: i + 1, tool: `${step.tool}:${nestedFlow}`, ok: false, error: err.message });
+                    if (step.onError === 'stop')
+                        break;
+                }
+                continue;
+            }
             const timeoutMs = step.timeoutMs ?? this.stepTimeoutMs;
             let attempts = step.onError === 'retry' ? 2 : 0;
             let result;

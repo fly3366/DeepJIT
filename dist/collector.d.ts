@@ -18,6 +18,8 @@ export declare class TraceCollector {
     handleEvent(sessionId: unknown, event: unknown): void;
     /** ctx.on('tools/result') handler; captures the raw frozen value for a call. */
     handleToolResult(exec: unknown, result: unknown): void;
+    /** Track invocation of compiled artifacts (separate from mining) for GC. */
+    private recordArtifactUsage;
     private push;
     /** Flush buffered rows to the store. */
     flushSync(): void;

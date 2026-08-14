@@ -19,6 +19,9 @@ export interface DeepJitConfig {
     flowDir: string;
     feedbackMode: 'auto' | 'runtime';
     locale: 'auto' | 'en' | 'zh';
+    gcEnabled: boolean;
+    gcStaleMs: number;
+    gcProtectMs: number;
     stepTimeoutMs: number;
     flowTimeoutMs: number;
 }

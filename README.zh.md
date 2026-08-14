@@ -18,6 +18,11 @@ dsh，无需重启。适合经常重复相似多工具工作流、希望 dsh 把
 trace ──► SQLite ──► 热点挖掘 ──► LLM 编译 ──► skill / flow ──► dsh
 ```
 
+- 产物存放在 `~/.dsh/deepjit/`，自动热加载进 dsh。
+- JIT 不编译自己的工具，避免自噬循环。
+- 生命周期：flow 可嵌套（`deepjit_flow` 步骤、限深度）；同名碰撞交给 LLM
+  对比（更新/跳过）；GC 在宽限期后禁用长期未用的产物。
+
 ## 兼容性
 
 | 项 | 值 |
@@ -64,6 +69,7 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 | `minRepeat` | `3` | 热点序列最少出现次数 |
 | `minFlowSteps` | `2` | 可编译流程的最少工具步数 |
 | `minPatternValue` | `6` | 触发编译的最小价值分（`count × steps`） |
+| `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14天 / 1天 | GC：宽限期后禁用超过 `gcStaleMs` 未用的产物 |
 | `llmProvider` / `llmModel` | `deepseek-official` /（跟随会话） | 编译模型；留空=复用会话模型 |
 | `locale` | `auto` | `en` / `zh` / `auto`（dsh locale → `LANG` → 英文） |
 

@@ -34,6 +34,8 @@ export interface ArtifactRow {
     summary: string | null;
     created_ms: number;
     updated_ms: number;
+    use_count: number;
+    last_used_ms: number | null;
 }
 export declare class DeepJitStore {
     private db;
@@ -84,6 +86,13 @@ export declare class DeepJitStore {
     getArtifact(name: string): ArtifactRow | undefined;
     updateArtifactStatus(name: string, status: 'active' | 'disabled'): void;
     deleteArtifact(name: string): void;
+    /** Bump usage counters when an artifact is invoked (skill load or flow replay). */
+    recordUsage(name: string, now?: number): void;
+    /**
+     * Disable active artifacts that are old enough (past the protection window)
+     * and unused for longer than the stale window. Returns the disabled names.
+     */
+    gcStale(now: number, staleMs: number, protectMs: number): string[];
     stats(): {
         traces: number;
         sessions: number;

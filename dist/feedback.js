@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync, renameSync, rmSync, existsSync, readFileSync, watch } from 'node:fs';
 import path from 'node:path';
-const SKILL_PREFIX = 'deepjit-';
+import { SKILL_PREFIX } from "./summarizer.js";
 function skillFrontmatter(name, description, whenToUse) {
     const lines = [
         '---',

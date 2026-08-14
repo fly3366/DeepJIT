@@ -51,7 +51,9 @@ CREATE TABLE IF NOT EXISTS artifacts (
   llm_model TEXT,
   summary TEXT,
   created_ms INTEGER,
-  updated_ms INTEGER
+  updated_ms INTEGER,
+  use_count INTEGER DEFAULT 0,
+  last_used_ms INTEGER
 );
 `;
 export class DeepJitStore {
@@ -66,13 +68,17 @@ export class DeepJitStore {
         this.migrate();
     }
     migrate() {
-        const version = this.db.prepare('PRAGMA user_version').get();
-        if (version.user_version >= 1)
+        const version = this.db.prepare('PRAGMA user_version').get().user_version;
+        if (version >= 2)
             return;
         this.db.exec('BEGIN');
         try {
             this.db.exec(SCHEMA_V1);
-            this.db.exec('PRAGMA user_version=1');
+            if (version === 1) {
+                this.db.exec('ALTER TABLE artifacts ADD COLUMN use_count INTEGER DEFAULT 0');
+                this.db.exec('ALTER TABLE artifacts ADD COLUMN last_used_ms INTEGER');
+            }
+            this.db.exec('PRAGMA user_version=2');
             this.db.exec('COMMIT');
         }
         catch (err) {
@@ -215,6 +221,27 @@ export class DeepJitStore {
     }
     deleteArtifact(name) {
         this.db.prepare('DELETE FROM artifacts WHERE name = ?').run(name);
+    }
+    /** Bump usage counters when an artifact is invoked (skill load or flow replay). */
+    recordUsage(name, now = Date.now()) {
+        this.db
+            .prepare('UPDATE artifacts SET use_count = use_count + 1, last_used_ms = ? WHERE name = ?')
+            .run(now, name);
+    }
+    /**
+     * Disable active artifacts that are old enough (past the protection window)
+     * and unused for longer than the stale window. Returns the disabled names.
+     */
+    gcStale(now, staleMs, protectMs) {
+        const rows = this.db
+            .prepare(`SELECT name FROM artifacts
+         WHERE status = 'active'
+           AND created_ms <= ?
+           AND COALESCE(last_used_ms, created_ms) <= ?`)
+            .all(now - protectMs, now - staleMs);
+        for (const r of rows)
+            this.updateArtifactStatus(r.name, 'disabled');
+        return rows.map((r) => r.name);
     }
     stats() {
         const one = (sql) => this.db.prepare(sql).get().n;

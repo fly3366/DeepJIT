@@ -1,14 +1,13 @@
 import { mkdirSync, writeFileSync, renameSync, rmSync, existsSync, readFileSync, watch } from 'node:fs'
 import path from 'node:path'
 import type { CompiledArtifact } from './summarizer.ts'
+import { SKILL_PREFIX } from './summarizer.ts'
 
 export interface SkillRegistryLike {
   register(skill: { name: string; description: string; whenToUse?: string; content: string }): () => void
   get(name: string): Promise<unknown>
   on(event: 'skills/change', handler: () => void): (() => void) | void
 }
-
-const SKILL_PREFIX = 'deepjit-'
 
 function skillFrontmatter(name: string, description: string, whenToUse?: string): string {
   const lines = [

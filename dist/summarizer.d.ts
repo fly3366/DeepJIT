@@ -1,5 +1,7 @@
 import { DeepJitStore } from './store.ts';
 import type { ArtifactRow } from './store.ts';
+/** Prefix applied to every published artifact name. */
+export declare const SKILL_PREFIX = "deepjit-";
 export interface CompiledArtifact {
     type: 'skill' | 'flow';
     name: string;
@@ -81,5 +83,11 @@ export declare class Summarizer {
     private buildTranscript;
     private compile;
     private callLlm;
+    /**
+     * On a same-name collision, let the model compare the existing artifact with
+     * the new one and decide whether to update. Defaults to 'skip' on any
+     * failure so we never overwrite by accident.
+     */
+    private decideUpdate;
 }
 export type { ArtifactRow };

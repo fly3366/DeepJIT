@@ -53,3 +53,20 @@ test('store: artifacts lifecycle', () => {
   assert.ok(!store.hasArtifact('deepjit-x'))
   store.close()
 })
+
+test('store: gc disables stale unused artifacts only', () => {
+  const store = new DeepJitStore(':memory:')
+  const now = 100_000
+  store.insertArtifact({ type: 'flow', name: 'deepjit-old-unused', file_path: '/tmp/a.json', status: 'active', created_ms: 1000 })
+  store.insertArtifact({ type: 'flow', name: 'deepjit-recent', file_path: '/tmp/b.json', status: 'active', created_ms: 99_900 })
+  store.insertArtifact({ type: 'flow', name: 'deepjit-old-used', file_path: '/tmp/c.json', status: 'active', created_ms: 1000 })
+  store.recordUsage('deepjit-old-used', 99_900)
+
+  const removed = store.gcStale(now, 1000, 500)
+  assert.deepEqual(removed, ['deepjit-old-unused'])
+  assert.equal(store.getArtifact('deepjit-old-unused')!.status, 'disabled')
+  assert.equal(store.getArtifact('deepjit-recent')!.status, 'active', 'protection window keeps recent')
+  assert.equal(store.getArtifact('deepjit-old-used')!.status, 'active', 'recently used kept')
+  assert.equal(store.getArtifact('deepjit-old-used')!.use_count, 1)
+  store.close()
+})
