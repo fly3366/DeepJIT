@@ -8,38 +8,89 @@
 
 [English](README.md) | 中文
 
+## 概述
+
 DeepJIT 持续采集 agent 执行 trace，挖掘反复出现的"热点"流程，用 LLM 编译为
 可复用的 **skill**（markdown）或 **flow**（步骤模板），并自动回馈给运行中的
-dsh，无需重启。
+dsh，无需重启。适合经常重复相似多工具工作流、希望 dsh 把它们沉淀为可复用资产的人。
 
 ```
 trace ──► SQLite ──► 热点挖掘 ──► LLM 编译 ──► skill / flow ──► dsh
 ```
 
-- 产物存放在 `~/.dsh/deepjit/`，自动热加载进 dsh。
-- 编译复用当前会话实际使用的模型；flow 每步仍过权限闸门。
-- JIT 不编译自己的工具，避免自噬循环。
+## 兼容性
 
-## 安装
+| 项 | 值 |
+|---|---|
+| DSH 版本 | `@deepseek-ai/dsh` `0.1.0-rc.6`（已验证） |
+| 验证 commit | `5869674`（2026-08-13） |
+| Node | `^22.19 \|\| >=24` |
+| 适用 profile | `headless`、`web` |
+
+dsh 处于预发布阶段，API 可能变化；依赖 pin 到 `@deepseek-ai/*` `0.1.0-rc.6`。
+
+## 安装 / 卸载
 
 ```sh
+# 安装（git 直装，无需 npm 发布）
 dsh plugin --profile web add github:fly3366/DeepJIT
+
+# 从某个 profile 移除
+dsh plugin --profile web remove deepjit
+
+# 彻底删除本地数据
+rm -rf ~/.dsh/deepjit
 ```
 
-## 工具
+## 快速开始
 
-- `deepjit_status` — 查看 / 禁用 / 启用 / 删除已编译产物。
-- `deepjit_flow` — 以 `{flow, args}` 重放已编译流程。
+```sh
+dsh plugin --profile headless add github:fly3366/DeepJIT
+DEEPSEEK_API_KEY=... dsh --profile headless "读取 package.json 和 tsconfig.json 并总结"
+# 重复类似任务，deepjit 会自动挖掘并编译热点流程
+dsh --profile headless "用 deepjit_status 列出已编译产物"
+```
+
+## 配置
+
+在 `cordis.patch.yml` 或 profile patch 中覆盖。主要配置项（完整列表见
+[`src/config.ts`](src/config.ts)）：
+
+| 配置 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 总开关 |
+| `summarizeIntervalMs` | `600000` | JIT 周期（挖掘+编译） |
+| `minRepeat` | `3` | 热点序列最少出现次数 |
+| `llmProvider` / `llmModel` | `deepseek-official` /（跟随会话） | 编译模型；留空=复用会话模型 |
+| `locale` | `auto` | `en` / `zh` / `auto`（dsh locale → `LANG` → 英文） |
+
+敏感项：不存储任何密钥。编译调用走 dsh 凭据服务或启动环境的 `DEEPSEEK_API_KEY`。
+
+## 权限与数据
+
+- **文件**：只写 `~/.dsh/deepjit/`（SQLite trace、skill、flow、日志）；
+  编译下钻时通过 `ctx.sessionPersistence` 读取会话 JSONL。
+- **网络**：LLM 调用走 dsh 的 `ctx.llm`（DeepSeek provider），无其他网络访问。
+- **凭据**：不存储，由 dsh 或环境解析。
+- **用户数据**：存储紧凑执行 trace（工具参数/结果、消息文本）。
+- **工具**：flow 每步走 `ctx.tools.execute` 与正常权限闸门。
+
+## 故障排查
+
+- 日志：`~/.dsh/deepjit/deepjit.log`；数据库：`~/.dsh/deepjit/deepjit.db`。
+- `MISSING_CREDENTIAL` → 导出 `DEEPSEEK_API_KEY` 或在 dsh Models 页保存。
+- 编译时 `TRANSPORT`/`NO_ADAPTER` → 多为 LLM 瞬时失败；deepjit 会重试并在下个周期兜底。
+- 回滚：`dsh plugin --profile <p> remove deepjit`，再 `rm -rf ~/.dsh/deepjit`。
 
 ## 开发
 
 ```sh
-npm install && npm test
+npm install && npm test     # node:test，Node 类型剥离原生运行
+npm run typecheck && npm run build
 ```
 
-全部配置项（周期、阈值、locale、路径）见 [`src/config.ts`](src/config.ts)。
-另见 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md)、[AGENTS.md](AGENTS.md)。
+见 [CONTRIBUTING.md](CONTRIBUTING.md)、[AGENTS.md](AGENTS.md)。
 
-## 许可
+## 许可与安全
 
-[MIT](LICENSE)
+[MIT](LICENSE)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
