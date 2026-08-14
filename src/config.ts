@@ -16,6 +16,7 @@ export interface DeepJitConfig {
   minRepeat: number
   ngramMin: number
   ngramMax: number
+  argumentAware: boolean
   topK: number
   minFlowSteps: number
   minPatternValue: number
@@ -53,6 +54,7 @@ export const Config: Schema<DeepJitConfig> = Schema.object({
   minRepeat: Schema.number().default(3),
   ngramMin: Schema.number().default(2),
   ngramMax: Schema.number().default(4),
+  argumentAware: Schema.boolean().default(false),
   topK: Schema.number().default(5),
   minFlowSteps: Schema.number().default(2),
   minPatternValue: Schema.number().default(6),

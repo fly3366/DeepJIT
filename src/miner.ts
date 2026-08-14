@@ -4,6 +4,25 @@ export interface MinerConfig {
   ngramMin: number
   ngramMax: number
   maxRows?: number
+  argumentAware?: boolean
+}
+
+interface ToolPayload {
+  name?: string
+  args?: string
+}
+
+/** Build the mining token for one tool row; optionally argument-aware. */
+function toolToken(p: ToolPayload, argumentAware: boolean): string {
+  const name = p.name ?? ''
+  if (!argumentAware) return name
+  try {
+    const args = JSON.parse(p.args ?? '{}') as Record<string, unknown>
+    const keys = Object.keys(args).sort().join('+')
+    return keys ? `${name}(${keys})` : name
+  } catch {
+    return name
+  }
 }
 
 const STOPWORDS = new Set([
@@ -13,10 +32,6 @@ const STOPWORDS = new Set([
   'i', 'you', 'we', 'they', 'he', 'she', 'me', 'my', 'your', 'our', 'their',
   'help', 'want', 'need', 'make', 'use', 'using', 'get', 'give', 'tell',
 ])
-
-interface ToolPayload {
-  name?: string
-}
 
 interface UserPayload {
   text?: string
@@ -50,7 +65,7 @@ export function mineHotPatterns(store: DeepJitStore, cfg: MinerConfig): void {
     const names = toolRows
       .map((r) => {
         try {
-          return (JSON.parse(r.payload) as ToolPayload).name ?? ''
+          return toolToken(JSON.parse(r.payload) as ToolPayload, cfg.argumentAware ?? false)
         } catch {
           return ''
         }

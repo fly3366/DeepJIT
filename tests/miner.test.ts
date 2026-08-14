@@ -47,3 +47,21 @@ test('miner: keyword extraction', () => {
   assert.deepEqual(extractKeywords('Please summarize the repository'), ['summarize', 'repository'])
   assert.ok(extractKeywords('帮我总结仓库的代码').includes('总结'))
 })
+
+test('miner: argument-aware tokens include sorted arg-key signature', () => {
+  const store = new DeepJitStore(':memory:')
+  for (const sid of ['s1', 's2']) {
+    store.upsertSession(sid, 1)
+    store.insertTraces([
+      { session_id: sid, turn: 1, step: 0, kind: 'tool', seq: 1, ts_ms: 1, payload: JSON.stringify({ name: 'read', args: '{"path":"/a","encoding":"utf8"}' }) },
+      { session_id: sid, turn: 1, step: 1, kind: 'tool', seq: 2, ts_ms: 2, payload: JSON.stringify({ name: 'read', args: '{"path":"/b"}' }) },
+    ])
+  }
+  mineHotPatterns(store, { ngramMin: 2, ngramMax: 2, argumentAware: true })
+  const hot = store.getHotPatterns('flow-seq', 2, 2, 10)
+  assert.ok(
+    hot.some((p) => p.key.includes('read(encoding+path)') && p.key.includes('read(path)')),
+    `expected arg-aware key, got ${JSON.stringify(hot.map((h) => h.key))}`,
+  )
+  store.close()
+})

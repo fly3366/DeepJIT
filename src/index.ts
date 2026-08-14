@@ -153,6 +153,7 @@ export function apply(ctx: Context, config: DeepJitConfig) {
       ngramMin: config.ngramMin,
       ngramMax: config.ngramMax,
       maxRows: config.minerMaxRows,
+      argumentAware: config.argumentAware,
     })
     if (config.gcEnabled) {
       const removed = store.gcStale(Date.now(), config.gcStaleMs, config.gcProtectMs)

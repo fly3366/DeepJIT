@@ -70,6 +70,7 @@ Override in `cordis.patch.yml` or a profile patch. Key options (full list in
 | `enabled` | `true` | master switch |
 | `summarizeIntervalMs` | `600000` | JIT cycle (mine + compile) |
 | `minRepeat` | `3` | min occurrences for a hot sequence |
+| `argumentAware` | `false` | include sorted arg-key signatures in mined sequences |
 | `minFlowSteps` | `2` | min tool steps a flow must have to be compiled |
 | `minPatternValue` | `6` | min value score (`count × steps`) to justify a compile |
 | `flushBatchSize` | `200` | trace rows per batched SQLite write |
