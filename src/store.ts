@@ -102,6 +102,16 @@ CREATE TABLE IF NOT EXISTS artifacts (
 );
 `
 
+/**
+ * Heuristic artifact quality: success rate weighted by usage volume.
+ * log2 dampens volume so a rarely-used artifact isn't over-rated.
+ */
+export function qualityScore(useCount: number, successCount: number): number {
+  if (useCount <= 0) return 0
+  const rate = Math.min(1, successCount / useCount)
+  return Math.round(rate * Math.log2(1 + useCount) * 100) / 100
+}
+
 export class DeepJitStore {
   private db: DatabaseSync
 

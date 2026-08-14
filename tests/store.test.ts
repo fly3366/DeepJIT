@@ -1,6 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { DeepJitStore } from '../src/store.ts'
+import { DeepJitStore, qualityScore } from '../src/store.ts'
+
+test('store: qualityScore combines success rate and damped usage volume', () => {
+  assert.equal(qualityScore(0, 0), 0)
+  assert.equal(qualityScore(10, 10), Math.round(Math.log2(11) * 100) / 100) // rate 1
+  assert.equal(qualityScore(10, 5), Math.round(0.5 * Math.log2(11) * 100) / 100) // rate 0.5
+  assert.ok(qualityScore(1000, 1000) > qualityScore(2, 2), 'volume raises score but damped')
+})
 
 test('store: schema v1, batch insert, watermark', () => {
   const store = new DeepJitStore(':memory:')

@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs'
-import { DeepJitStore } from './store.ts'
+import { DeepJitStore, qualityScore } from './store.ts'
 import { ArtifactFeedback } from './feedback.ts'
 import { t } from './i18n.ts'
 import { metrics } from './metrics.ts'
@@ -63,7 +63,8 @@ export class StatusTool {
         if (rows.length === 0) return t('status.empty')
         const lines = rows.map((r) => {
           const fileOk = existsSync(r.file_path)
-          return `- [${r.status}] ${r.type} ${r.name} — ${r.description ?? ''} (${fileOk ? 'file ok' : 'MISSING FILE'}, feedback: ${r.feedback_mode ?? 'n/a'})`
+          const q = qualityScore(r.use_count, r.success_count)
+          return `- [${r.status}] ${r.type} ${r.name} — ${r.description ?? ''} (quality: ${q}, uses: ${r.use_count}, ${fileOk ? 'file ok' : 'MISSING FILE'})`
         })
         return `deepjit artifacts (${rows.length}):\n${lines.join('\n')}`
       }
