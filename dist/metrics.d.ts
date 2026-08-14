@@ -12,6 +12,9 @@
 declare class Metrics {
     private counters;
     private timings;
+    private otelCounters;
+    private otelHistograms;
+    private meter;
     inc(name: string, by?: number): void;
     /** Record a duration sample (ms). */
     observe(name: string, ms: number): void;

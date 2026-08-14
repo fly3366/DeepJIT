@@ -10,6 +10,8 @@
  * instance and reset on restart (durable stats live in the SQLite tables).
  */
 
+import { metrics as otel, type Counter, type Histogram } from '@opentelemetry/api'
+
 interface Timing {
   count: number
   sum: number
@@ -19,9 +21,21 @@ interface Timing {
 class Metrics {
   private counters = new Map<string, number>()
   private timings = new Map<string, Timing>()
+  private otelCounters = new Map<string, Counter>()
+  private otelHistograms = new Map<string, Histogram>()
+
+  private meter() {
+    return otel.getMeter('deepjit')
+  }
 
   inc(name: string, by = 1): void {
     this.counters.set(name, (this.counters.get(name) ?? 0) + by)
+    let c = this.otelCounters.get(name)
+    if (!c) {
+      c = this.meter().createCounter(name)
+      this.otelCounters.set(name, c)
+    }
+    c.add(by)
   }
 
   /** Record a duration sample (ms). */
@@ -31,6 +45,12 @@ class Metrics {
     t.sum += ms
     if (ms > t.max) t.max = ms
     this.timings.set(name, t)
+    let h = this.otelHistograms.get(name)
+    if (!h) {
+      h = this.meter().createHistogram(name, { unit: 'ms' })
+      this.otelHistograms.set(name, h)
+    }
+    h.record(ms)
   }
 
   get(name: string): number {

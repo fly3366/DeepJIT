@@ -9,11 +9,23 @@
  * Kept as a process-local singleton: metrics describe the running plugin
  * instance and reset on restart (durable stats live in the SQLite tables).
  */
+import { metrics as otel } from '@opentelemetry/api';
 class Metrics {
     counters = new Map();
     timings = new Map();
+    otelCounters = new Map();
+    otelHistograms = new Map();
+    meter() {
+        return otel.getMeter('deepjit');
+    }
     inc(name, by = 1) {
         this.counters.set(name, (this.counters.get(name) ?? 0) + by);
+        let c = this.otelCounters.get(name);
+        if (!c) {
+            c = this.meter().createCounter(name);
+            this.otelCounters.set(name, c);
+        }
+        c.add(by);
     }
     /** Record a duration sample (ms). */
     observe(name, ms) {
@@ -23,6 +35,12 @@ class Metrics {
         if (ms > t.max)
             t.max = ms;
         this.timings.set(name, t);
+        let h = this.otelHistograms.get(name);
+        if (!h) {
+            h = this.meter().createHistogram(name, { unit: 'ms' });
+            this.otelHistograms.set(name, h);
+        }
+        h.record(ms);
     }
     get(name) {
         return this.counters.get(name) ?? 0;
