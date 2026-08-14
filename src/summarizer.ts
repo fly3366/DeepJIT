@@ -3,7 +3,7 @@ import { DeepJitStore } from './store.ts'
 import type { ArtifactRow, PatternRow } from './store.ts'
 import { optimizeFlow, type AotContext } from './compiler/optimize.ts'
 import { metrics } from './metrics.ts'
-import { startLlmSpan, endLlmSpan } from './genai.ts'
+import { startLlmSpan, endLlmSpan, recordTokenUsage } from './genai.ts'
 
 /** Prefix applied to every published artifact name. */
 export const SKILL_PREFIX = 'deepjit-'
@@ -394,6 +394,7 @@ export class Summarizer {
       }
       if (text) {
         endLlmSpan(span, usage)
+        if (usage) recordTokenUsage(model, usage)
         return text
       }
       endLlmSpan(span, usage, new Error('LLM returned no text'))

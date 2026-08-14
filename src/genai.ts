@@ -6,7 +6,22 @@
  * Emitted through the standard @opentelemetry/api; when dsh-o11y-plugin
  * registers global providers these spans export via OTLP, otherwise no-op.
  */
-import { trace, SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
+import { trace, metrics, SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
+
+const TRACER = 'deepjit'
+const METER = 'deepjit'
+
+/** Record the standard GenAI client token-usage metric (input/output). */
+export function recordTokenUsage(model: string, usage: LlmUsage): void {
+  const meter = metrics.getMeter(METER)
+  const hist = meter.createHistogram('gen_ai.client.token.usage', { unit: '{token}' })
+  if (usage.inputTokens !== undefined) {
+    hist.record(usage.inputTokens, { 'gen_ai.request.model': model, 'gen_ai.token.type': 'input' })
+  }
+  if (usage.outputTokens !== undefined) {
+    hist.record(usage.outputTokens, { 'gen_ai.request.model': model, 'gen_ai.token.type': 'output' })
+  }
+}
 
 export interface LlmSpanInput {
   operation?: string
@@ -21,8 +36,6 @@ export interface LlmUsage {
   outputTokens?: number
   reasoningTokens?: number
 }
-
-const TRACER = 'deepjit'
 
 /** Start a client span for one LLM request, tagged with gen_ai.* attributes. */
 export function startLlmSpan(input: LlmSpanInput): Span {
