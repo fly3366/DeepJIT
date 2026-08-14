@@ -6,6 +6,9 @@ export interface DeepJitConfig {
   flushIntervalMs: number
   flushBatchSize: number
   maxResultChars: number
+  maxPendingCalls: number
+  minerMaxRows: number
+  transcriptMaxRows: number
   summarizeIntervalMs: number
   minIntervalMs: number
   llmProvider: string
@@ -33,6 +36,9 @@ export const Config: Schema<DeepJitConfig> = Schema.object({
   flushIntervalMs: Schema.number().default(200),
   flushBatchSize: Schema.number().default(200),
   maxResultChars: Schema.number().default(4000),
+  maxPendingCalls: Schema.number().default(10_000),
+  minerMaxRows: Schema.number().default(20_000),
+  transcriptMaxRows: Schema.number().default(2000),
   summarizeIntervalMs: Schema.number().default(10 * 60 * 1000),
   minIntervalMs: Schema.number().default(5 * 60 * 1000),
   llmProvider: Schema.string().default('deepseek-official'),

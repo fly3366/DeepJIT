@@ -51,6 +51,7 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     () => collector.flushSync(),
     config.maxResultChars,
     config.flushBatchSize,
+    config.maxPendingCalls,
   )
 
   const log = (msg: string) => {
@@ -103,6 +104,7 @@ export function apply(ctx: Context, config: DeepJitConfig) {
       topK: config.topK,
       minFlowSteps: config.minFlowSteps,
       minPatternValue: config.minPatternValue,
+      transcriptMaxRows: config.transcriptMaxRows,
     },
     { stream: (o) => llm.stream(o) },
     persistence,
@@ -134,7 +136,11 @@ export function apply(ctx: Context, config: DeepJitConfig) {
 
   // JIT cycle: mine hot paths, then compile the strongest ones
   ctx.interval(() => {
-    mineHotPatterns(store, config)
+    mineHotPatterns(store, {
+      ngramMin: config.ngramMin,
+      ngramMax: config.ngramMax,
+      maxRows: config.minerMaxRows,
+    })
     if (config.gcEnabled) {
       const removed = store.gcStale(Date.now(), config.gcStaleMs, config.gcProtectMs)
       for (const name of removed) log(`deepjit: gc disabled stale artifact ${name}`)

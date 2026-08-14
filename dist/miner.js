@@ -29,8 +29,8 @@ export function mineHotPatterns(store, cfg) {
     const now = Date.now();
     for (const session of store.listSummarizableSessions()) {
         const fromSeq = session.last_summarized_seq;
-        const toolRows = store.readTracesSince(session.id, fromSeq, ['tool']);
-        const userRows = store.readTracesSince(session.id, fromSeq, ['user']);
+        const toolRows = store.readTracesSince(session.id, fromSeq, ['tool'], cfg.maxRows);
+        const userRows = store.readTracesSince(session.id, fromSeq, ['user'], cfg.maxRows);
         const names = toolRows
             .map((r) => {
             try {

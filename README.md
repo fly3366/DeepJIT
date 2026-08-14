@@ -72,6 +72,10 @@ Override in `cordis.patch.yml` or a profile patch. Key options (full list in
 | `minRepeat` | `3` | min occurrences for a hot sequence |
 | `minFlowSteps` | `2` | min tool steps a flow must have to be compiled |
 | `minPatternValue` | `6` | min value score (`count × steps`) to justify a compile |
+| `flushBatchSize` | `200` | trace rows per batched SQLite write |
+| `maxPendingCalls` | `10000` | cap for in-memory pending/raw maps (bounds memory) |
+| `minerMaxRows` | `20000` | max trace rows read per session per mining cycle |
+| `transcriptMaxRows` | `2000` | max tool rows read per compile transcript |
 | `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14d / 1d | GC: disable artifacts unused beyond `gcStaleMs` after a `gcProtectMs` grace |
 | `llmProvider` / `llmModel` | `deepseek-official` / (session) | compile model; empty = reuse session model |
 | `locale` | `auto` | `en` / `zh` / `auto` (dsh locale → `LANG` → English) |

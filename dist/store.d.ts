@@ -51,7 +51,7 @@ export declare class DeepJitStore {
     /** Insert a batch of traces in one transaction and advance the session watermark. */
     insertTraces(rows: TraceRow[]): void;
     /** Tool / user traces after the summarization watermark, ordered by seq. */
-    readTracesSince(sessionId: string, fromSeq: number, kinds: TraceKind[]): TraceRow[];
+    readTracesSince(sessionId: string, fromSeq: number, kinds: TraceKind[], limit?: number): TraceRow[];
     advanceSummarizeWatermark(sessionId: string, upToSeq: number): void;
     listSummarizableSessions(): {
         id: string;

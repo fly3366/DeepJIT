@@ -137,13 +137,15 @@ export class DeepJitStore {
         }
     }
     /** Tool / user traces after the summarization watermark, ordered by seq. */
-    readTracesSince(sessionId, fromSeq, kinds) {
+    readTracesSince(sessionId, fromSeq, kinds, limit) {
         const placeholders = kinds.map(() => '?').join(',');
-        return this.db
-            .prepare(`SELECT session_id, turn, step, kind, seq, ts_ms, payload
+        const sql = `SELECT session_id, turn, step, kind, seq, ts_ms, payload
          FROM traces WHERE session_id = ? AND seq > ? AND kind IN (${placeholders})
-         ORDER BY seq ASC`)
-            .all(sessionId, fromSeq, ...kinds);
+         ORDER BY seq ASC${limit !== undefined ? ' LIMIT ?' : ''}`;
+        const params = [sessionId, fromSeq, ...kinds];
+        if (limit !== undefined)
+            params.push(limit);
+        return this.db.prepare(sql).all(...params);
     }
     advanceSummarizeWatermark(sessionId, upToSeq) {
         this.db

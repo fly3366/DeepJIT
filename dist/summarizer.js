@@ -126,7 +126,7 @@ export class Summarizer {
     }
     async buildTranscript(sessionId, key, signal) {
         const names = key.split('>');
-        const toolRows = this.store.readTracesSince(sessionId, 0, ['tool']);
+        const toolRows = this.store.readTracesSince(sessionId, 0, ['tool'], this.cfg.transcriptMaxRows);
         const seqs = toolRows.map((r) => {
             try {
                 return { seq: r.seq, name: JSON.parse(r.payload).name ?? '' };

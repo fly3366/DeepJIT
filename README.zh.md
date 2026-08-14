@@ -69,6 +69,10 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 | `minRepeat` | `3` | 热点序列最少出现次数 |
 | `minFlowSteps` | `2` | 可编译流程的最少工具步数 |
 | `minPatternValue` | `6` | 触发编译的最小价值分（`count × steps`） |
+| `flushBatchSize` | `200` | 每批写入 SQLite 的 trace 行数 |
+| `maxPendingCalls` | `10000` | 内存 pending/raw 映射上限（约束内存） |
+| `minerMaxRows` | `20000` | 每会话每挖掘周期最多读取的 trace 行数 |
+| `transcriptMaxRows` | `2000` | 每次编译转录最多读取的工具行数 |
 | `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14天 / 1天 | GC：宽限期后禁用超过 `gcStaleMs` 未用的产物 |
 | `llmProvider` / `llmModel` | `deepseek-official` /（跟随会话） | 编译模型；留空=复用会话模型 |
 | `locale` | `auto` | `en` / `zh` / `auto`（dsh locale → `LANG` → 英文） |

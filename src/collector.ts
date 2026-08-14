@@ -62,6 +62,7 @@ export class TraceCollector {
   private seenSessions = new Set<string>()
   private maxResultChars: number
   private flushBatchSize: number
+  private maxPendingCalls: number
   private store: DeepJitStore
   private flush: () => void
 
@@ -70,11 +71,27 @@ export class TraceCollector {
     flush: () => void,
     maxResultChars: number,
     flushBatchSize: number,
+    maxPendingCalls = 10_000,
   ) {
     this.store = store
     this.flush = flush
     this.maxResultChars = maxResultChars
     this.flushBatchSize = flushBatchSize
+    this.maxPendingCalls = maxPendingCalls
+  }
+
+  /** Diagnostic: number of tool calls awaiting a result (bounded by maxPendingCalls). */
+  get pendingCount(): number {
+    return this.pendingCalls.size
+  }
+
+  /** Evict oldest entries so a map never grows past the configured cap. */
+  private capMap<K, V>(map: Map<K, V>): void {
+    while (map.size > this.maxPendingCalls) {
+      const oldest = map.keys().next().value
+      if (oldest === undefined) break
+      map.delete(oldest)
+    }
   }
 
   /** ctx.on('session/event') handler; event envelope: {type, seq, time, data, ...} */
@@ -86,6 +103,10 @@ export class TraceCollector {
 
     if (!this.seenSessions.has(sid)) {
       this.seenSessions.add(sid)
+      if (this.seenSessions.size > this.maxPendingCalls) {
+        const oldest = this.seenSessions.keys().next().value
+        if (oldest !== undefined) this.seenSessions.delete(oldest)
+      }
       this.store.upsertSession(sid, time)
     }
 
@@ -120,6 +141,7 @@ export class TraceCollector {
           name: String(data.name ?? ''),
           args: truncate(String(data.arguments ?? ''), this.maxResultChars),
         })
+        this.capMap(this.pendingCalls)
         break
       }
       case 'tool/result': {
@@ -208,6 +230,7 @@ export class TraceCollector {
       }
     } else {
       this.rawValues.set(e.callId, value)
+      this.capMap(this.rawValues)
     }
   }
 

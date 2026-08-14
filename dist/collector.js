@@ -49,13 +49,28 @@ export class TraceCollector {
     seenSessions = new Set();
     maxResultChars;
     flushBatchSize;
+    maxPendingCalls;
     store;
     flush;
-    constructor(store, flush, maxResultChars, flushBatchSize) {
+    constructor(store, flush, maxResultChars, flushBatchSize, maxPendingCalls = 10_000) {
         this.store = store;
         this.flush = flush;
         this.maxResultChars = maxResultChars;
         this.flushBatchSize = flushBatchSize;
+        this.maxPendingCalls = maxPendingCalls;
+    }
+    /** Diagnostic: number of tool calls awaiting a result (bounded by maxPendingCalls). */
+    get pendingCount() {
+        return this.pendingCalls.size;
+    }
+    /** Evict oldest entries so a map never grows past the configured cap. */
+    capMap(map) {
+        while (map.size > this.maxPendingCalls) {
+            const oldest = map.keys().next().value;
+            if (oldest === undefined)
+                break;
+            map.delete(oldest);
+        }
     }
     /** ctx.on('session/event') handler; event envelope: {type, seq, time, data, ...} */
     handleEvent(sessionId, event) {
@@ -66,6 +81,11 @@ export class TraceCollector {
         const { type, seq, time } = env;
         if (!this.seenSessions.has(sid)) {
             this.seenSessions.add(sid);
+            if (this.seenSessions.size > this.maxPendingCalls) {
+                const oldest = this.seenSessions.keys().next().value;
+                if (oldest !== undefined)
+                    this.seenSessions.delete(oldest);
+            }
             this.store.upsertSession(sid, time);
         }
         switch (type) {
@@ -103,6 +123,7 @@ export class TraceCollector {
                     name: String(data.name ?? ''),
                     args: truncate(String(data.arguments ?? ''), this.maxResultChars),
                 });
+                this.capMap(this.pendingCalls);
                 break;
             }
             case 'tool/result': {
@@ -190,6 +211,7 @@ export class TraceCollector {
         }
         else {
             this.rawValues.set(e.callId, value);
+            this.capMap(this.rawValues);
         }
     }
     /** Track invocation of compiled artifacts (separate from mining) for GC. */

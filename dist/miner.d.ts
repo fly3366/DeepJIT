@@ -2,6 +2,7 @@ import { DeepJitStore } from './store.ts';
 export interface MinerConfig {
     ngramMin: number;
     ngramMax: number;
+    maxRows?: number;
 }
 /** Extract intent keywords: ASCII words + CJK bigrams, stopword filtered. */
 export declare function extractKeywords(text: string, maxPerText?: number): string[];

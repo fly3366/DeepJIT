@@ -62,3 +62,13 @@ test('collector: truncated values and failed tool calls', () => {
   assert.ok(payload.args.includes('truncated'))
   store.close()
 })
+
+test('collector: orphaned pending calls are capped (no unbounded growth)', () => {
+  const store = new DeepJitStore(':memory:')
+  const c = new TraceCollector(store, () => c.flushSync(), 1000, 200, 5)
+  for (let i = 0; i < 20; i++) {
+    c.handleEvent('s1', { type: 'tool/call', seq: i + 1, time: i, data: { callId: `orphan-${i}`, name: 't', arguments: '{}', turn: 1, step: 0 } })
+  }
+  assert.ok(c.pendingCount <= 5, `pending capped, got ${c.pendingCount}`)
+  store.close()
+})

@@ -27,6 +27,7 @@ export interface SummarizerConfig {
     topK: number;
     minFlowSteps: number;
     minPatternValue: number;
+    transcriptMaxRows: number;
 }
 /** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
 export declare function patternSteps(key: string): number;

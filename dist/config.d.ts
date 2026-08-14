@@ -5,6 +5,9 @@ export interface DeepJitConfig {
     flushIntervalMs: number;
     flushBatchSize: number;
     maxResultChars: number;
+    maxPendingCalls: number;
+    minerMaxRows: number;
+    transcriptMaxRows: number;
     summarizeIntervalMs: number;
     minIntervalMs: number;
     llmProvider: string;

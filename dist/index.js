@@ -41,7 +41,7 @@ export function apply(ctx, config) {
     setLocale(config.locale, readDshLocale(ctx));
     const dirs = resolveDirs(ctx, config);
     const store = new DeepJitStore(dirs.dbPath);
-    const collector = new TraceCollector(store, () => collector.flushSync(), config.maxResultChars, config.flushBatchSize);
+    const collector = new TraceCollector(store, () => collector.flushSync(), config.maxResultChars, config.flushBatchSize, config.maxPendingCalls);
     const log = (msg) => {
         ;
         ctx.logger?.info(msg);
@@ -77,6 +77,7 @@ export function apply(ctx, config) {
         topK: config.topK,
         minFlowSteps: config.minFlowSteps,
         minPatternValue: config.minPatternValue,
+        transcriptMaxRows: config.transcriptMaxRows,
     }, { stream: (o) => llm.stream(o) }, persistence, (artifact) => feedback.publish(artifact), log);
     const tools = ctx.tools;
     const flowExecutor = new FlowExecutor(dirs.flowDir, store, (input) => tools.execute(input), callIdFactory, config.stepTimeoutMs, config.maxResultChars, log);
@@ -92,7 +93,11 @@ export function apply(ctx, config) {
     ctx.interval(() => collector.flushSync(), config.flushIntervalMs);
     // JIT cycle: mine hot paths, then compile the strongest ones
     ctx.interval(() => {
-        mineHotPatterns(store, config);
+        mineHotPatterns(store, {
+            ngramMin: config.ngramMin,
+            ngramMax: config.ngramMax,
+            maxRows: config.minerMaxRows,
+        });
         if (config.gcEnabled) {
             const removed = store.gcStale(Date.now(), config.gcStaleMs, config.gcProtectMs);
             for (const name of removed)
