@@ -1,7 +1,7 @@
 import { DeepJitStore } from './store.ts';
 import { ArtifactFeedback } from './feedback.ts';
 interface StatusArgs {
-    action: 'list' | 'show' | 'disable' | 'enable' | 'delete';
+    action: 'list' | 'show' | 'disable' | 'enable' | 'delete' | 'metrics';
     type?: 'skill' | 'flow';
     name?: string;
 }

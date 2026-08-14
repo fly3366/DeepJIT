@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { t } from "./i18n.js";
+import { metrics } from "./metrics.js";
 /** The deepjit_status tool: inspect and manage compiled artifacts. */
 export class StatusTool {
     store;
@@ -22,7 +23,7 @@ export class StatusTool {
                 properties: {
                     action: {
                         type: 'string',
-                        enum: ['list', 'show', 'disable', 'enable', 'delete'],
+                        enum: ['list', 'show', 'disable', 'enable', 'delete', 'metrics'],
                         description: 'Operation to perform',
                     },
                     type: { type: 'string', enum: ['skill', 'flow'], description: 'Artifact type (list only)' },
@@ -96,6 +97,11 @@ export class StatusTool {
                 this.store.deleteArtifact(args.name);
                 this.log(`deepjit: deleted artifact ${args.name}`);
                 return t('status.deleted', { name: args.name });
+            }
+            case 'metrics': {
+                const snap = metrics.snapshot();
+                const lines = Object.entries(snap).map(([k, v]) => `${k}: ${v}`);
+                return lines.length ? `deepjit metrics:\n${lines.join('\n')}` : t('status.empty');
             }
             default:
                 return t('status.unknownAction', { action: args.action });

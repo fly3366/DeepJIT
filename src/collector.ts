@@ -1,4 +1,5 @@
 import { DeepJitStore, type TraceRow } from './store.ts'
+import { metrics } from './metrics.ts'
 
 interface PendingCall {
   tsMs: number
@@ -265,5 +266,7 @@ export class TraceCollector {
     this.rowsByCallId.clear()
     this.rawValues.clear()
     this.store.insertTraces(rows)
+    metrics.inc('flushes')
+    metrics.inc('traces_flushed', rows.length)
   }
 }

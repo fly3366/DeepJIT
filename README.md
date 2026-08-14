@@ -94,6 +94,9 @@ or the launching environment's `DEEPSEEK_API_KEY`.
 - **Credentials**: none stored; resolved by dsh or the environment.
 - **User data**: stores compact execution traces (tool args/results, message text).
 - **Tools**: flow steps run through `ctx.tools.execute` and the normal permission gates.
+- **Observability**: dsh's OTel telemetry covers agent sessions only; DeepJIT keeps its
+  own counters (traces flushed, compiles, LLM latency, GC/deopt/promote). Read them via
+  `deepjit_status {action:"metrics"}`.
 
 ## Troubleshooting
 

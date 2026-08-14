@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { DeepJitStore } from './store.ts'
 import type { ArtifactRow, PatternRow } from './store.ts'
 import { optimizeFlow, type AotContext } from './compiler/optimize.ts'
+import { metrics } from './metrics.ts'
 
 /** Prefix applied to every published artifact name. */
 export const SKILL_PREFIX = 'deepjit-'
@@ -164,6 +165,7 @@ export class Summarizer {
         const transcript = await this.buildTranscript(pattern.sample_session, pattern.key, signal)
         if (!transcript.tools.length) continue
         try {
+          metrics.inc('compile_attempted')
           const output = await this.compile(pattern.key, pattern.count, transcript, pattern.sample_session, signal)
           const finalName = `${SKILL_PREFIX}${output.name}`
           const existing = this.store.getArtifact(finalName)
@@ -191,8 +193,11 @@ export class Summarizer {
           })
           this.store.markPatternCompiled(pattern.id)
           compiled++
+          metrics.inc('compile_succeeded')
+          metrics.inc(`artifacts_published.${output.type}`)
           this.log(`deepjit: compiled "${output.name}" (${output.type}) from pattern "${pattern.key}"`)
         } catch (err) {
+          metrics.inc('compile_failed')
           this.log(`deepjit: compile failed for pattern "${pattern.key}": ${(err as Error).message}`)
         }
       }
@@ -216,6 +221,7 @@ export class Summarizer {
       if (output.type !== 'flow') return undefined
       const { name: publishedName } = await this.publish({ ...output, sourcePatternId: pattern.id })
       this.store.markPatternCompiled(pattern.id)
+      metrics.inc('promotions')
       this.log(`deepjit: promoted pattern "${pattern.key}" to flow "${publishedName}"`)
       return publishedName
     } catch (err) {
@@ -358,7 +364,9 @@ export class Summarizer {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 2000))
       let text = ''
+      const started = Date.now()
       try {
+        metrics.inc('llm_calls')
         for await (const chunk of this.llm.stream({
           provider,
           model,
@@ -372,7 +380,9 @@ export class Summarizer {
           if (c.type === 'finish') this.log(`deepjit: llm finish ${JSON.stringify(c.reason).slice(0, 500)}`)
           if (c.type === 'text-delta' && typeof c.text === 'string') text += c.text
         }
+        metrics.observe('llm_latency', Date.now() - started)
       } catch (err) {
+        metrics.inc('llm_errors')
         lastError = err
         this.log(`deepjit: llm stream attempt ${attempt + 1} threw: ${(err as Error).message}`)
         continue

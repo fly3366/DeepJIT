@@ -17,6 +17,7 @@ import { StatusTool } from './status-tool.ts'
 import { resolveDirs } from './paths.ts'
 import { setLocale } from './i18n.ts'
 import { runTiering } from './compiler/tiering.ts'
+import { metrics } from './metrics.ts'
 
 export const name = 'deepjit'
 export const inject = ['llm', 'skills', 'tools', 'sessionPersistence', 'timer']
@@ -148,8 +149,11 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     if (config.gcEnabled) {
       const removed = store.gcStale(Date.now(), config.gcStaleMs, config.gcProtectMs)
       for (const name of removed) log(`deepjit: gc disabled stale artifact ${name}`)
+      metrics.inc('gc_artifacts_disabled', removed.length)
       const prunedTraces = store.pruneTraces(config.traceRetentionMs)
       const prunedPatterns = store.prunePatterns(config.patternRetentionMs)
+      metrics.inc('traces_pruned', prunedTraces)
+      metrics.inc('patterns_pruned', prunedPatterns)
       if (prunedTraces > 0) log(`deepjit: pruned ${prunedTraces} old trace rows`)
       if (prunedPatterns > 0) log(`deepjit: pruned ${prunedPatterns} stale patterns`)
     }
@@ -159,6 +163,8 @@ export function apply(ctx: Context, config: DeepJitConfig) {
       promoteMinUses: config.promoteMinUses,
       promoteMinSuccessRate: config.promoteMinSuccessRate,
     })
+    metrics.inc('deopt', tier.deopted.length)
+    metrics.inc('promote_candidates', tier.promote.length)
     for (const name of tier.deopted) log(`deepjit: deoptimized unreliable flow ${name}`)
     for (const skill of tier.promote) {
       if (skill.source_pattern_id == null) continue

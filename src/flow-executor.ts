@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { DeepJitStore } from './store.ts'
 import { t } from './i18n.ts'
+import { metrics } from './metrics.ts'
 
 export interface FlowStep {
   tool: string
@@ -155,6 +156,7 @@ export class FlowExecutor {
       // Nested flow: recurse with the step's args as the child input, depth-limited.
       if (step.tool === 'deepjit_flow') {
         if (depth + 1 > FlowExecutor.MAX_DEPTH) {
+          metrics.inc('nested_depth_exceeded')
           outcomes.push({ index: i + 1, tool: step.tool, ok: false, error: t('flow.recursive', { name: flowName }) })
           break
         }
@@ -215,6 +217,10 @@ export class FlowExecutor {
     }
     const ok = outcomes.every((o) => o.ok) && !signal.aborted
     this.store.recordOutcome(flowName, ok)
+    if (depth === 0) {
+      metrics.inc('flow_runs')
+      metrics.inc(ok ? 'flow_success' : 'flow_failure')
+    }
     return { ok, steps: outcomes }
   }
 }

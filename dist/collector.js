@@ -1,3 +1,4 @@
+import { metrics } from "./metrics.js";
 /** deepjit's own tools are excluded from traces to prevent JIT self-compilation loops. */
 const JIT_TOOL_PREFIX = 'deepjit_';
 function isJitTool(name) {
@@ -250,6 +251,8 @@ export class TraceCollector {
         this.rowsByCallId.clear();
         this.rawValues.clear();
         this.store.insertTraces(rows);
+        metrics.inc('flushes');
+        metrics.inc('traces_flushed', rows.length);
     }
 }
 //# sourceMappingURL=collector.js.map

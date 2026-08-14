@@ -90,6 +90,9 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 - **凭据**：不存储，由 dsh 或环境解析。
 - **用户数据**：存储紧凑执行 trace（工具参数/结果、消息文本）。
 - **工具**：flow 每步走 `ctx.tools.execute` 与正常权限闸门。
+- **可观测**：dsh 的 OTel 遥测只覆盖 agent 会话；DeepJIT 自维护计数器
+  （trace 刷写、编译、LLM 时延、GC/deopt/升级）。用
+  `deepjit_status {action:"metrics"}` 查看。
 
 ## 故障排查
 

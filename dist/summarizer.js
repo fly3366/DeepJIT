@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { optimizeFlow } from "./compiler/optimize.js";
+import { metrics } from "./metrics.js";
 /** Prefix applied to every published artifact name. */
 export const SKILL_PREFIX = 'deepjit-';
 /** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
@@ -88,6 +89,7 @@ export class Summarizer {
                 if (!transcript.tools.length)
                     continue;
                 try {
+                    metrics.inc('compile_attempted');
                     const output = await this.compile(pattern.key, pattern.count, transcript, pattern.sample_session, signal);
                     const finalName = `${SKILL_PREFIX}${output.name}`;
                     const existing = this.store.getArtifact(finalName);
@@ -115,9 +117,12 @@ export class Summarizer {
                     });
                     this.store.markPatternCompiled(pattern.id);
                     compiled++;
+                    metrics.inc('compile_succeeded');
+                    metrics.inc(`artifacts_published.${output.type}`);
                     this.log(`deepjit: compiled "${output.name}" (${output.type}) from pattern "${pattern.key}"`);
                 }
                 catch (err) {
+                    metrics.inc('compile_failed');
                     this.log(`deepjit: compile failed for pattern "${pattern.key}": ${err.message}`);
                 }
             }
@@ -144,6 +149,7 @@ export class Summarizer {
                 return undefined;
             const { name: publishedName } = await this.publish({ ...output, sourcePatternId: pattern.id });
             this.store.markPatternCompiled(pattern.id);
+            metrics.inc('promotions');
             this.log(`deepjit: promoted pattern "${pattern.key}" to flow "${publishedName}"`);
             return publishedName;
         }
@@ -270,7 +276,9 @@ export class Summarizer {
             if (attempt > 0)
                 await new Promise((r) => setTimeout(r, attempt * 2000));
             let text = '';
+            const started = Date.now();
             try {
+                metrics.inc('llm_calls');
                 for await (const chunk of this.llm.stream({
                     provider,
                     model,
@@ -286,8 +294,10 @@ export class Summarizer {
                     if (c.type === 'text-delta' && typeof c.text === 'string')
                         text += c.text;
                 }
+                metrics.observe('llm_latency', Date.now() - started);
             }
             catch (err) {
+                metrics.inc('llm_errors');
                 lastError = err;
                 this.log(`deepjit: llm stream attempt ${attempt + 1} threw: ${err.message}`);
                 continue;

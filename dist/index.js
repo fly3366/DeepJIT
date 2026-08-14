@@ -15,6 +15,7 @@ import { StatusTool } from "./status-tool.js";
 import { resolveDirs } from "./paths.js";
 import { setLocale } from "./i18n.js";
 import { runTiering } from "./compiler/tiering.js";
+import { metrics } from "./metrics.js";
 export const name = 'deepjit';
 export const inject = ['llm', 'skills', 'tools', 'sessionPersistence', 'timer'];
 const callIdFactory = (uuid) => CallId(uuid);
@@ -103,8 +104,11 @@ export function apply(ctx, config) {
             const removed = store.gcStale(Date.now(), config.gcStaleMs, config.gcProtectMs);
             for (const name of removed)
                 log(`deepjit: gc disabled stale artifact ${name}`);
+            metrics.inc('gc_artifacts_disabled', removed.length);
             const prunedTraces = store.pruneTraces(config.traceRetentionMs);
             const prunedPatterns = store.prunePatterns(config.patternRetentionMs);
+            metrics.inc('traces_pruned', prunedTraces);
+            metrics.inc('patterns_pruned', prunedPatterns);
             if (prunedTraces > 0)
                 log(`deepjit: pruned ${prunedTraces} old trace rows`);
             if (prunedPatterns > 0)
@@ -116,6 +120,8 @@ export function apply(ctx, config) {
             promoteMinUses: config.promoteMinUses,
             promoteMinSuccessRate: config.promoteMinSuccessRate,
         });
+        metrics.inc('deopt', tier.deopted.length);
+        metrics.inc('promote_candidates', tier.promote.length);
         for (const name of tier.deopted)
             log(`deepjit: deoptimized unreliable flow ${name}`);
         for (const skill of tier.promote) {
