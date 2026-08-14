@@ -113,7 +113,15 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     },
     { stream: (o) => llm.stream(o) },
     persistence,
-    (artifact) => feedback.publish(artifact),
+    async (artifact) => {
+      const published = await feedback.publish(artifact)
+      if (config.dryRun) {
+        feedback.disable(published.name)
+        store.updateArtifactStatus(published.name, 'disabled')
+        log(`deepjit: dry-run published "${published.name}" as disabled (enable via deepjit_status)`)
+      }
+      return published
+    },
     log,
     { toolExists: (name) => name === 'deepjit_flow' || tools.get(name) !== undefined },
   )

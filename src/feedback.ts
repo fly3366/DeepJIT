@@ -123,6 +123,7 @@ export class ArtifactFeedback {
       this.runtimeRegistrations.set(name, next)
       old?.()
     })
+    watcher.unref?.()
     this.watchers.set(name, () => {
       watcher.close()
       this.runtimeRegistrations.delete(name)
@@ -131,9 +132,13 @@ export class ArtifactFeedback {
     this.log(`deepjit: skill ${name} not discovered via filesystem provider, registered at runtime`)
   }
 
-  /** Rename skill dir / flow file to *.disabled so watchers unload it. */
+  /** Accept either the prefixed or bare artifact name. */
+  private full(name: string): string {
+    return name.startsWith(SKILL_PREFIX) ? name : `${SKILL_PREFIX}${name}`
+  }
+
   disable(name: string): void {
-    const full = `${SKILL_PREFIX}${name}`
+    const full = this.full(name)
     this.unregisterRuntime(full)
     const skillPath = path.join(this.dirs.skillDir, full)
     const flowPath = path.join(this.dirs.flowDir, `${full}.json`)
@@ -144,7 +149,7 @@ export class ArtifactFeedback {
 
   /** Reverse of disable. */
   enable(name: string): void {
-    const full = `${SKILL_PREFIX}${name}`
+    const full = this.full(name)
     const skillPath = path.join(this.dirs.skillDir, full)
     const flowPath = path.join(this.dirs.flowDir, `${full}.json`)
     if (existsSync(`${skillPath}.disabled`) && !existsSync(skillPath)) {
@@ -156,7 +161,7 @@ export class ArtifactFeedback {
   }
 
   remove(name: string): void {
-    const full = `${SKILL_PREFIX}${name}`
+    const full = this.full(name)
     this.unregisterRuntime(full)
     const skillPath = path.join(this.dirs.skillDir, full)
     const flowPath = path.join(this.dirs.flowDir, `${full}.json`)

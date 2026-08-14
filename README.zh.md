@@ -74,6 +74,7 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 | `minerMaxRows` | `20000` | 每会话每挖掘周期最多读取的 trace 行数 |
 | `transcriptMaxRows` | `2000` | 每次编译转录最多读取的工具行数 |
 | `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14天 / 1天 | GC：宽限期后禁用超过 `gcStaleMs` 未用的产物 |
+| `dryRun` | `false` | 产物以禁用态发布，需经 `deepjit_status` 手动启用 |
 | `traceRetentionMs` / `patternRetentionMs` | 7天 / 7天 | 剪枝超期的 trace 行 / 未编译 pattern |
 | `deoptMinUses` / `deoptMaxSuccessRate` | `5` / `0.5` | 使用≥N 次且成功率≤此值的 flow 被禁用（去优化） |
 | `promoteMinUses` / `promoteMinSuccessRate` | `5` / `0.8` | 高频且可靠的 skill 其 pattern 重编译为 flow（升级） |

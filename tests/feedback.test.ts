@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ArtifactFeedback } from '../src/feedback.ts'
@@ -69,6 +69,28 @@ test('feedback: watcher re-registers on SKILL.md change and disposes old registr
   await sleep(600)
   assert.ok(stub.registered.length >= 2, 're-registered on change')
   assert.ok(stub.disposed.includes('deepjit-watched'), 'old registration disposed')
+  fb.disposeAll()
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('feedback: disable renames skill dir to .disabled and enable restores it', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'deepjit-fb-'))
+  const stub = makeStub(async () => undefined)
+  const fb = new ArtifactFeedback(
+    { skillDir: path.join(dir, 'skills'), flowDir: path.join(dir, 'flows') },
+    stub,
+    () => {},
+  )
+  await fb.publish(skillArtifact('toggle'))
+  const base = path.join(dir, 'skills', 'deepjit-toggle')
+  assert.ok(existsSync(base), 'skill dir exists after publish')
+
+  fb.disable('deepjit-toggle')
+  assert.ok(!existsSync(base), 'dir renamed away on disable')
+  assert.ok(existsSync(`${base}.disabled`), '.disabled present')
+
+  fb.enable('deepjit-toggle')
+  assert.ok(existsSync(base), 'dir restored on enable')
   fb.disposeAll()
   rmSync(dir, { recursive: true, force: true })
 })

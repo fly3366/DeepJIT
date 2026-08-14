@@ -77,6 +77,7 @@ Override in `cordis.patch.yml` or a profile patch. Key options (full list in
 | `minerMaxRows` | `20000` | max trace rows read per session per mining cycle |
 | `transcriptMaxRows` | `2000` | max tool rows read per compile transcript |
 | `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14d / 1d | GC: disable artifacts unused beyond `gcStaleMs` after a `gcProtectMs` grace |
+| `dryRun` | `false` | publish artifacts as disabled; enable manually via `deepjit_status` |
 | `traceRetentionMs` / `patternRetentionMs` | 7d / 7d | prune trace rows / stale uncompiled patterns older than this |
 | `deoptMinUses` / `deoptMaxSuccessRate` | `5` / `0.5` | disable a flow used ≥N times with success rate ≤ this (deoptimization) |
 | `promoteMinUses` / `promoteMinSuccessRate` | `5` / `0.8` | recompile a hot, reliable skill's pattern as a flow (promotion) |

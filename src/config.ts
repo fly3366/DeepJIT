@@ -22,6 +22,7 @@ export interface DeepJitConfig {
   skillDir: string
   flowDir: string
   feedbackMode: 'auto' | 'runtime'
+  dryRun: boolean
   locale: 'auto' | 'en' | 'zh'
   gcEnabled: boolean
   gcStaleMs: number
@@ -58,6 +59,7 @@ export const Config: Schema<DeepJitConfig> = Schema.object({
   skillDir: Schema.string().default(''),
   flowDir: Schema.string().default(''),
   feedbackMode: Schema.union(['auto', 'runtime']).default('auto'),
+  dryRun: Schema.boolean().default(false),
   locale: Schema.union(['auto', 'en', 'zh']).default('auto'),
   gcEnabled: Schema.boolean().default(true),
   gcStaleMs: Schema.number().default(14 * 24 * 3600 * 1000),
