@@ -27,6 +27,10 @@ export interface DeepJitConfig {
     gcProtectMs: number;
     traceRetentionMs: number;
     patternRetentionMs: number;
+    deoptMinUses: number;
+    deoptMaxSuccessRate: number;
+    promoteMinUses: number;
+    promoteMinSuccessRate: number;
     stepTimeoutMs: number;
     flowTimeoutMs: number;
 }

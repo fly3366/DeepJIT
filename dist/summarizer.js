@@ -1,4 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
+import { optimizeFlow } from "./compiler/optimize.js";
 /** Prefix applied to every published artifact name. */
 export const SKILL_PREFIX = 'deepjit-';
 /** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
@@ -38,13 +39,15 @@ export class Summarizer {
     persistence;
     publish;
     log;
-    constructor(store, cfg, llm, persistence, publish, log) {
+    aot;
+    constructor(store, cfg, llm, persistence, publish, log, aot) {
         this.store = store;
         this.cfg = cfg;
         this.llm = llm;
         this.persistence = persistence;
         this.publish = publish;
         this.log = log;
+        this.aot = aot;
     }
     get busy() {
         return this.inFlight;
@@ -124,6 +127,31 @@ export class Summarizer {
         }
         return compiled;
     }
+    /**
+     * Tier promotion: recompile a hot skill's source pattern as a flow (tier 2).
+     * Returns the published flow name, or undefined on failure.
+     */
+    async compilePatternAsFlow(patternId, signal) {
+        const pattern = this.store.getPatternById(patternId);
+        if (!pattern)
+            return undefined;
+        try {
+            const transcript = await this.buildTranscript(pattern.sample_session, pattern.key, signal);
+            if (!transcript.tools.length)
+                return undefined;
+            const output = await this.compile(pattern.key, pattern.count, transcript, pattern.sample_session, signal, 'flow');
+            if (output.type !== 'flow')
+                return undefined;
+            const { name: publishedName } = await this.publish({ ...output, sourcePatternId: pattern.id });
+            this.store.markPatternCompiled(pattern.id);
+            this.log(`deepjit: promoted pattern "${pattern.key}" to flow "${publishedName}"`);
+            return publishedName;
+        }
+        catch (err) {
+            this.log(`deepjit: promotion failed for pattern ${patternId}: ${err.message}`);
+            return undefined;
+        }
+    }
     async buildTranscript(sessionId, key, signal) {
         const names = key.split('>');
         const toolRows = this.store.readTracesSince(sessionId, 0, ['tool'], this.cfg.transcriptMaxRows);
@@ -194,7 +222,7 @@ export class Summarizer {
         const text = parts.join('\n').slice(0, 12000);
         return { text, tools };
     }
-    async compile(patternKey, count, transcript, sampleSession, signal) {
+    async compile(patternKey, count, transcript, sampleSession, signal, forceType) {
         const userMsg = [
             `Recurring workflow (observed ${count} times, tool sequence "${patternKey}").`,
             `Known tool names: ${transcript.tools.join(', ')}.`,
@@ -202,7 +230,9 @@ export class Summarizer {
             'Transcript excerpt:',
             transcript.text,
             '',
-            'Compile this workflow into a JSON artifact per the system rules.',
+            forceType
+                ? 'Compile this workflow into a JSON artifact of type "flow" per the system rules.'
+                : 'Compile this workflow into a JSON artifact per the system rules.',
         ].join('\n');
         // Follow the user's configured model (captured from request/context events);
         // the plugin config only provides a fallback when no session has run yet.
@@ -223,6 +253,9 @@ export class Summarizer {
             try {
                 const parsed = parseJson(raw);
                 const artifact = validateArtifact(parsed, transcript.tools);
+                if (artifact.type === 'flow' && this.aot) {
+                    optimizeFlow(artifact.steps ?? [], this.aot);
+                }
                 return artifact;
             }
             catch (err) {

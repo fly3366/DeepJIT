@@ -22,9 +22,9 @@ traces ──► SQLite ──► hot-path mining ──► LLM compile ──�
 
 - Artifacts live under `~/.dsh/deepjit/` and hot-reload into dsh.
 - JIT never compiles its own tools, so it can't feed on itself.
-- Lifecycle: flows may nest (`deepjit_flow` steps, depth-limited); same-name
-  collisions defer to an LLM compare (update vs skip); a GC disables stale,
-  unused artifacts after a grace period.
+- Lifecycle (compiler-style): an AOT pass validates flows against the live tool
+  registry and constant-folds literal args; tiering promotes hot, reliable
+  skills to flows and deoptimizes unreliable flows; GC prunes stale artifacts.
 
 ## Compatibility
 
@@ -78,6 +78,8 @@ Override in `cordis.patch.yml` or a profile patch. Key options (full list in
 | `transcriptMaxRows` | `2000` | max tool rows read per compile transcript |
 | `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14d / 1d | GC: disable artifacts unused beyond `gcStaleMs` after a `gcProtectMs` grace |
 | `traceRetentionMs` / `patternRetentionMs` | 7d / 7d | prune trace rows / stale uncompiled patterns older than this |
+| `deoptMinUses` / `deoptMaxSuccessRate` | `5` / `0.5` | disable a flow used ≥N times with success rate ≤ this (deoptimization) |
+| `promoteMinUses` / `promoteMinSuccessRate` | `5` / `0.8` | recompile a hot, reliable skill's pattern as a flow (promotion) |
 | `llmProvider` / `llmModel` | `deepseek-official` / (session) | compile model; empty = reuse session model |
 | `locale` | `auto` | `en` / `zh` / `auto` (dsh locale → `LANG` → English) |
 

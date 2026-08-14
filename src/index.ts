@@ -16,6 +16,7 @@ import { FlowExecutor } from './flow-executor.ts'
 import { StatusTool } from './status-tool.ts'
 import { resolveDirs } from './paths.ts'
 import { setLocale } from './i18n.ts'
+import { runTiering } from './compiler/tiering.ts'
 
 export const name = 'deepjit'
 export const inject = ['llm', 'skills', 'tools', 'sessionPersistence', 'timer']
@@ -94,6 +95,9 @@ export function apply(ctx: Context, config: DeepJitConfig) {
   const llm = (ctx as unknown as {
     llm: { stream(o: unknown): AsyncIterable<unknown> }
   }).llm
+  const tools = (ctx as unknown as {
+    tools: { execute(o: unknown): Promise<unknown>; get(name: string): unknown }
+  }).tools
   const summarizer = new Summarizer(
     store,
     {
@@ -110,9 +114,9 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     persistence,
     (artifact) => feedback.publish(artifact),
     log,
+    { toolExists: (name) => name === 'deepjit_flow' || tools.get(name) !== undefined },
   )
 
-  const tools = (ctx as unknown as { tools: { execute(o: unknown): Promise<unknown> } }).tools
   const flowExecutor = new FlowExecutor(
     dirs.flowDir,
     store,
@@ -148,6 +152,19 @@ export function apply(ctx: Context, config: DeepJitConfig) {
       const prunedPatterns = store.prunePatterns(config.patternRetentionMs)
       if (prunedTraces > 0) log(`deepjit: pruned ${prunedTraces} old trace rows`)
       if (prunedPatterns > 0) log(`deepjit: pruned ${prunedPatterns} stale patterns`)
+    }
+    const tier = runTiering(store, {
+      deoptMinUses: config.deoptMinUses,
+      deoptMaxSuccessRate: config.deoptMaxSuccessRate,
+      promoteMinUses: config.promoteMinUses,
+      promoteMinSuccessRate: config.promoteMinSuccessRate,
+    })
+    for (const name of tier.deopted) log(`deepjit: deoptimized unreliable flow ${name}`)
+    for (const skill of tier.promote) {
+      if (skill.source_pattern_id == null) continue
+      void summarizer
+        .compilePatternAsFlow(skill.source_pattern_id)
+        .catch((err) => log(`deepjit: promotion error: ${(err as Error).message}`))
     }
     if (!summarizer.shouldRun(config.minIntervalMs)) return
     void summarizer.run().catch((err) => log(`deepjit: jit run failed: ${(err as Error).message}`))

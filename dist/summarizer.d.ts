@@ -1,5 +1,6 @@
 import { DeepJitStore } from './store.ts';
 import type { ArtifactRow } from './store.ts';
+import { type AotContext } from './compiler/optimize.ts';
 /** Prefix applied to every published artifact name. */
 export declare const SKILL_PREFIX = "deepjit-";
 export interface CompiledArtifact {
@@ -73,7 +74,8 @@ export declare class Summarizer {
     private persistence;
     private publish;
     private log;
-    constructor(store: DeepJitStore, cfg: SummarizerConfig, llm: LlmLike, persistence: SessionPersistenceLike | undefined, publish: PublishFn, log: (msg: string) => void);
+    private aot?;
+    constructor(store: DeepJitStore, cfg: SummarizerConfig, llm: LlmLike, persistence: SessionPersistenceLike | undefined, publish: PublishFn, log: (msg: string) => void, aot?: AotContext);
     get busy(): boolean;
     /** How many uncompiled traces are waiting since the last mined watermark. */
     pendingTraces(): number;
@@ -81,6 +83,11 @@ export declare class Summarizer {
     /** Hot patterns that clear the repetition, cross-session, step, and value gates. */
     private valuableCandidates;
     run(signal?: AbortSignal): Promise<number>;
+    /**
+     * Tier promotion: recompile a hot skill's source pattern as a flow (tier 2).
+     * Returns the published flow name, or undefined on failure.
+     */
+    compilePatternAsFlow(patternId: number, signal?: AbortSignal): Promise<string | undefined>;
     private buildTranscript;
     private compile;
     private callLlm;

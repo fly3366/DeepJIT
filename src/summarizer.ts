@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { DeepJitStore } from './store.ts'
 import type { ArtifactRow, PatternRow } from './store.ts'
+import { optimizeFlow, type AotContext } from './compiler/optimize.ts'
 
 /** Prefix applied to every published artifact name. */
 export const SKILL_PREFIX = 'deepjit-'
@@ -102,6 +103,7 @@ export class Summarizer {
   private persistence: SessionPersistenceLike | undefined
   private publish: PublishFn
   private log: (msg: string) => void
+  private aot?: AotContext
 
   constructor(
     store: DeepJitStore,
@@ -110,6 +112,7 @@ export class Summarizer {
     persistence: SessionPersistenceLike | undefined,
     publish: PublishFn,
     log: (msg: string) => void,
+    aot?: AotContext,
   ) {
     this.store = store
     this.cfg = cfg
@@ -117,6 +120,7 @@ export class Summarizer {
     this.persistence = persistence
     this.publish = publish
     this.log = log
+    this.aot = aot
   }
 
   get busy(): boolean {
@@ -198,6 +202,28 @@ export class Summarizer {
     return compiled
   }
 
+  /**
+   * Tier promotion: recompile a hot skill's source pattern as a flow (tier 2).
+   * Returns the published flow name, or undefined on failure.
+   */
+  async compilePatternAsFlow(patternId: number, signal?: AbortSignal): Promise<string | undefined> {
+    const pattern = this.store.getPatternById(patternId)
+    if (!pattern) return undefined
+    try {
+      const transcript = await this.buildTranscript(pattern.sample_session, pattern.key, signal)
+      if (!transcript.tools.length) return undefined
+      const output = await this.compile(pattern.key, pattern.count, transcript, pattern.sample_session, signal, 'flow')
+      if (output.type !== 'flow') return undefined
+      const { name: publishedName } = await this.publish({ ...output, sourcePatternId: pattern.id })
+      this.store.markPatternCompiled(pattern.id)
+      this.log(`deepjit: promoted pattern "${pattern.key}" to flow "${publishedName}"`)
+      return publishedName
+    } catch (err) {
+      this.log(`deepjit: promotion failed for pattern ${patternId}: ${(err as Error).message}`)
+      return undefined
+    }
+  }
+
   private async buildTranscript(
     sessionId: string,
     key: string,
@@ -271,6 +297,7 @@ export class Summarizer {
     transcript: { text: string; tools: string[] },
     sampleSession: string,
     signal?: AbortSignal,
+    forceType?: 'flow',
   ): Promise<CompiledArtifact> {
     const userMsg = [
       `Recurring workflow (observed ${count} times, tool sequence "${patternKey}").`,
@@ -279,7 +306,9 @@ export class Summarizer {
       'Transcript excerpt:',
       transcript.text,
       '',
-      'Compile this workflow into a JSON artifact per the system rules.',
+      forceType
+        ? 'Compile this workflow into a JSON artifact of type "flow" per the system rules.'
+        : 'Compile this workflow into a JSON artifact per the system rules.',
     ].join('\n')
 
     // Follow the user's configured model (captured from request/context events);
@@ -307,6 +336,9 @@ export class Summarizer {
       try {
         const parsed = parseJson(raw)
         const artifact = validateArtifact(parsed, transcript.tools)
+        if (artifact.type === 'flow' && this.aot) {
+          optimizeFlow(artifact.steps ?? [], this.aot)
+        }
         return artifact
       } catch (err) {
         lastError = (err as Error).message

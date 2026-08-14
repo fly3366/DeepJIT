@@ -36,6 +36,7 @@ export interface ArtifactRow {
     updated_ms: number;
     use_count: number;
     last_used_ms: number | null;
+    success_count: number;
 }
 export declare class DeepJitStore {
     private db;
@@ -67,6 +68,7 @@ export declare class DeepJitStore {
     getHotPatterns(kind: string, minCount: number, minSessions: number, limit: number): PatternRow[];
     markPatternCompiled(id: number): void;
     getPatternByKey(kind: string, key: string): PatternRow | undefined;
+    getPatternById(id: number): PatternRow | undefined;
     hasArtifact(name: string): boolean;
     insertArtifact(row: {
         type: 'skill' | 'flow';
@@ -88,6 +90,12 @@ export declare class DeepJitStore {
     deleteArtifact(name: string): void;
     /** Bump usage counters when an artifact is invoked (skill load or flow replay). */
     recordUsage(name: string, now?: number): void;
+    /** Record whether an invocation succeeded (drives promotion / deoptimization). */
+    recordOutcome(name: string, ok: boolean): void;
+    /** Flows used enough but failing too often — candidates for deoptimization. */
+    listDeoptCandidates(minUses: number, maxSuccessRate: number): ArtifactRow[];
+    /** Skills used often and reliably — candidates for promotion to flow (tier 2). */
+    listPromoteCandidates(minUses: number, minSuccessRate: number): ArtifactRow[];
     /**
      * Disable active artifacts that are old enough (past the protection window)
      * and unused for longer than the stale window. Returns the disabled names.

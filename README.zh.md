@@ -20,8 +20,8 @@ trace ──► SQLite ──► 热点挖掘 ──► LLM 编译 ──► ski
 
 - 产物存放在 `~/.dsh/deepjit/`，自动热加载进 dsh。
 - JIT 不编译自己的工具，避免自噬循环。
-- 生命周期：flow 可嵌套（`deepjit_flow` 步骤、限深度）；同名碰撞交给 LLM
-  对比（更新/跳过）；GC 在宽限期后禁用长期未用的产物。
+- 生命周期（编译器式）：AOT pass 对照实时工具注册表校验 flow 并常量折叠字面参数；
+  分层（tiering）把高频可靠的 skill 升级为 flow、对不可靠 flow 去优化；GC 剪枝过期产物。
 
 ## 兼容性
 
@@ -75,6 +75,8 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 | `transcriptMaxRows` | `2000` | 每次编译转录最多读取的工具行数 |
 | `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14天 / 1天 | GC：宽限期后禁用超过 `gcStaleMs` 未用的产物 |
 | `traceRetentionMs` / `patternRetentionMs` | 7天 / 7天 | 剪枝超期的 trace 行 / 未编译 pattern |
+| `deoptMinUses` / `deoptMaxSuccessRate` | `5` / `0.5` | 使用≥N 次且成功率≤此值的 flow 被禁用（去优化） |
+| `promoteMinUses` / `promoteMinSuccessRate` | `5` / `0.8` | 高频且可靠的 skill 其 pattern 重编译为 flow（升级） |
 | `llmProvider` / `llmModel` | `deepseek-official` /（跟随会话） | 编译模型；留空=复用会话模型 |
 | `locale` | `auto` | `en` / `zh` / `auto`（dsh locale → `LANG` → 英文） |
 

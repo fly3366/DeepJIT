@@ -170,7 +170,9 @@ export class FlowExecutor {
             if (!ok && step.onError !== 'continue' && step.onError !== 'retry')
                 break;
         }
-        return { ok: outcomes.every((o) => o.ok) && !signal.aborted, steps: outcomes };
+        const ok = outcomes.every((o) => o.ok) && !signal.aborted;
+        this.store.recordOutcome(flowName, ok);
+        return { ok, steps: outcomes };
     }
 }
 //# sourceMappingURL=flow-executor.js.map

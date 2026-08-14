@@ -43,6 +43,7 @@ export interface ArtifactRow {
   updated_ms: number
   use_count: number
   last_used_ms: number | null
+  success_count: number
 }
 
 const SCHEMA_V1 = `
@@ -116,7 +117,7 @@ export class DeepJitStore {
 
   private migrate(): void {
     const version = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version >= 2) return
+    if (version >= 3) return
     this.db.exec('BEGIN')
     try {
       this.db.exec(SCHEMA_V1)
@@ -124,7 +125,10 @@ export class DeepJitStore {
         this.db.exec('ALTER TABLE artifacts ADD COLUMN use_count INTEGER DEFAULT 0')
         this.db.exec('ALTER TABLE artifacts ADD COLUMN last_used_ms INTEGER')
       }
-      this.db.exec('PRAGMA user_version=2')
+      if (version <= 2) {
+        this.db.exec('ALTER TABLE artifacts ADD COLUMN success_count INTEGER DEFAULT 0')
+      }
+      this.db.exec('PRAGMA user_version=3')
       this.db.exec('COMMIT')
     } catch (err) {
       this.db.exec('ROLLBACK')
@@ -268,6 +272,10 @@ export class DeepJitStore {
       .get(kind, key) as unknown as PatternRow | undefined
   }
 
+  getPatternById(id: number): PatternRow | undefined {
+    return this.db.prepare('SELECT * FROM patterns WHERE id = ?').get(id) as unknown as PatternRow | undefined
+  }
+
   hasArtifact(name: string): boolean {
     return !!this.db.prepare('SELECT 1 FROM artifacts WHERE name = ?').get(name)
   }
@@ -342,6 +350,34 @@ export class DeepJitStore {
     this.db
       .prepare('UPDATE artifacts SET use_count = use_count + 1, last_used_ms = ? WHERE name = ?')
       .run(now, name)
+  }
+
+  /** Record whether an invocation succeeded (drives promotion / deoptimization). */
+  recordOutcome(name: string, ok: boolean): void {
+    if (ok) this.db.prepare('UPDATE artifacts SET success_count = success_count + 1 WHERE name = ?').run(name)
+  }
+
+  /** Flows used enough but failing too often — candidates for deoptimization. */
+  listDeoptCandidates(minUses: number, maxSuccessRate: number): ArtifactRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM artifacts
+         WHERE type = 'flow' AND status = 'active' AND use_count >= ?
+           AND (CAST(success_count AS REAL) / use_count) <= ?`,
+      )
+      .all(minUses, maxSuccessRate) as unknown as ArtifactRow[]
+  }
+
+  /** Skills used often and reliably — candidates for promotion to flow (tier 2). */
+  listPromoteCandidates(minUses: number, minSuccessRate: number): ArtifactRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM artifacts
+         WHERE type = 'skill' AND status = 'active' AND use_count >= ?
+           AND source_pattern_id > 0
+           AND (CAST(success_count AS REAL) / use_count) >= ?`,
+      )
+      .all(minUses, minSuccessRate) as unknown as ArtifactRow[]
   }
 
   /**

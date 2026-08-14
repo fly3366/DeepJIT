@@ -14,6 +14,7 @@ import { FlowExecutor } from "./flow-executor.js";
 import { StatusTool } from "./status-tool.js";
 import { resolveDirs } from "./paths.js";
 import { setLocale } from "./i18n.js";
+import { runTiering } from "./compiler/tiering.js";
 export const name = 'deepjit';
 export const inject = ['llm', 'skills', 'tools', 'sessionPersistence', 'timer'];
 const callIdFactory = (uuid) => CallId(uuid);
@@ -69,6 +70,7 @@ export function apply(ctx, config) {
     const feedback = new ArtifactFeedback({ skillDir: dirs.skillDir, flowDir: dirs.flowDir }, skillsAdapter, log);
     const persistence = ctx.sessionPersistence;
     const llm = ctx.llm;
+    const tools = ctx.tools;
     const summarizer = new Summarizer(store, {
         llmProvider: config.llmProvider,
         llmModel: config.llmModel,
@@ -78,8 +80,7 @@ export function apply(ctx, config) {
         minFlowSteps: config.minFlowSteps,
         minPatternValue: config.minPatternValue,
         transcriptMaxRows: config.transcriptMaxRows,
-    }, { stream: (o) => llm.stream(o) }, persistence, (artifact) => feedback.publish(artifact), log);
-    const tools = ctx.tools;
+    }, { stream: (o) => llm.stream(o) }, persistence, (artifact) => feedback.publish(artifact), log, { toolExists: (name) => name === 'deepjit_flow' || tools.get(name) !== undefined });
     const flowExecutor = new FlowExecutor(dirs.flowDir, store, (input) => tools.execute(input), callIdFactory, config.stepTimeoutMs, config.maxResultChars, log);
     const statusTool = new StatusTool(store, feedback, dirs, log);
     // capture
@@ -108,6 +109,21 @@ export function apply(ctx, config) {
                 log(`deepjit: pruned ${prunedTraces} old trace rows`);
             if (prunedPatterns > 0)
                 log(`deepjit: pruned ${prunedPatterns} stale patterns`);
+        }
+        const tier = runTiering(store, {
+            deoptMinUses: config.deoptMinUses,
+            deoptMaxSuccessRate: config.deoptMaxSuccessRate,
+            promoteMinUses: config.promoteMinUses,
+            promoteMinSuccessRate: config.promoteMinSuccessRate,
+        });
+        for (const name of tier.deopted)
+            log(`deepjit: deoptimized unreliable flow ${name}`);
+        for (const skill of tier.promote) {
+            if (skill.source_pattern_id == null)
+                continue;
+            void summarizer
+                .compilePatternAsFlow(skill.source_pattern_id)
+                .catch((err) => log(`deepjit: promotion error: ${err.message}`));
         }
         if (!summarizer.shouldRun(config.minIntervalMs))
             return;
