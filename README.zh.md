@@ -74,6 +74,7 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 | `minerMaxRows` | `20000` | 每会话每挖掘周期最多读取的 trace 行数 |
 | `transcriptMaxRows` | `2000` | 每次编译转录最多读取的工具行数 |
 | `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14天 / 1天 | GC：宽限期后禁用超过 `gcStaleMs` 未用的产物 |
+| `traceRetentionMs` / `patternRetentionMs` | 7天 / 7天 | 剪枝超期的 trace 行 / 未编译 pattern |
 | `llmProvider` / `llmModel` | `deepseek-official` /（跟随会话） | 编译模型；留空=复用会话模型 |
 | `locale` | `auto` | `en` / `zh` / `auto`（dsh locale → `LANG` → 英文） |
 

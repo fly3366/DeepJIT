@@ -54,6 +54,26 @@ test('store: artifacts lifecycle', () => {
   store.close()
 })
 
+test('store: retention pruning removes old traces and stale uncompiled patterns', () => {
+  const store = new DeepJitStore(':memory:')
+  const now = 100_000
+  store.upsertSession('s1', 1)
+  store.insertTraces([
+    { session_id: 's1', turn: 1, step: 0, kind: 'tool', seq: 1, ts_ms: 1000, payload: '{"name":"old"}' },
+    { session_id: 's1', turn: 1, step: 1, kind: 'tool', seq: 2, ts_ms: 99_000, payload: '{"name":"new"}' },
+  ])
+  store.upsertPattern('flow-seq', 'old>old', 3, 2, 's1', 1000)
+  store.upsertPattern('flow-seq', 'new>new', 3, 2, 's1', 99_000)
+
+  const t = store.pruneTraces(7000, now)
+  const p = store.prunePatterns(7000, now)
+  assert.equal(t, 1, 'old trace removed')
+  assert.equal(p, 1, 'stale uncompiled pattern removed')
+  assert.equal(store.readTracesSince('s1', 0, ['tool']).length, 1)
+  assert.ok(store.getPatternByKey('flow-seq', 'new>new'), 'recent pattern kept')
+  store.close()
+})
+
 test('store: gc disables stale unused artifacts only', () => {
   const store = new DeepJitStore(':memory:')
   const now = 100_000

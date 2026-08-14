@@ -93,6 +93,10 @@ export declare class DeepJitStore {
      * and unused for longer than the stale window. Returns the disabled names.
      */
     gcStale(now: number, staleMs: number, protectMs: number): string[];
+    /** Delete trace rows older than the cutoff; returns the number removed. */
+    pruneTraces(olderThanMs: number, now?: number): number;
+    /** Delete uncompiled patterns not seen within the retention window. */
+    prunePatterns(olderThanMs: number, now?: number): number;
     stats(): {
         traces: number;
         sessions: number;

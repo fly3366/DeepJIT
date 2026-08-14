@@ -25,6 +25,8 @@ export const Config = Schema.object({
     gcEnabled: Schema.boolean().default(true),
     gcStaleMs: Schema.number().default(14 * 24 * 3600 * 1000),
     gcProtectMs: Schema.number().default(24 * 3600 * 1000),
+    traceRetentionMs: Schema.number().default(7 * 24 * 3600 * 1000),
+    patternRetentionMs: Schema.number().default(7 * 24 * 3600 * 1000),
     stepTimeoutMs: Schema.number().default(120_000),
     flowTimeoutMs: Schema.number().default(600_000),
 });

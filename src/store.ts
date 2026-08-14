@@ -361,6 +361,20 @@ export class DeepJitStore {
     return rows.map((r) => r.name)
   }
 
+  /** Delete trace rows older than the cutoff; returns the number removed. */
+  pruneTraces(olderThanMs: number, now = Date.now()): number {
+    const res = this.db.prepare('DELETE FROM traces WHERE ts_ms < ?').run(now - olderThanMs)
+    return Number(res.changes)
+  }
+
+  /** Delete uncompiled patterns not seen within the retention window. */
+  prunePatterns(olderThanMs: number, now = Date.now()): number {
+    const res = this.db
+      .prepare('DELETE FROM patterns WHERE compiled = 0 AND last_seen_ms < ?')
+      .run(now - olderThanMs)
+    return Number(res.changes)
+  }
+
   stats(): { traces: number; sessions: number; patterns: number; artifacts: number } {
     const one = (sql: string) => (this.db.prepare(sql).get() as { n: number }).n
     return {

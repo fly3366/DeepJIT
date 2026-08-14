@@ -77,6 +77,7 @@ Override in `cordis.patch.yml` or a profile patch. Key options (full list in
 | `minerMaxRows` | `20000` | max trace rows read per session per mining cycle |
 | `transcriptMaxRows` | `2000` | max tool rows read per compile transcript |
 | `gcEnabled` / `gcStaleMs` / `gcProtectMs` | `true` / 14d / 1d | GC: disable artifacts unused beyond `gcStaleMs` after a `gcProtectMs` grace |
+| `traceRetentionMs` / `patternRetentionMs` | 7d / 7d | prune trace rows / stale uncompiled patterns older than this |
 | `llmProvider` / `llmModel` | `deepseek-official` / (session) | compile model; empty = reuse session model |
 | `locale` | `auto` | `en` / `zh` / `auto` (dsh locale → `LANG` → English) |
 

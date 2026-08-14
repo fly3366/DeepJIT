@@ -102,6 +102,12 @@ export function apply(ctx, config) {
             const removed = store.gcStale(Date.now(), config.gcStaleMs, config.gcProtectMs);
             for (const name of removed)
                 log(`deepjit: gc disabled stale artifact ${name}`);
+            const prunedTraces = store.pruneTraces(config.traceRetentionMs);
+            const prunedPatterns = store.prunePatterns(config.patternRetentionMs);
+            if (prunedTraces > 0)
+                log(`deepjit: pruned ${prunedTraces} old trace rows`);
+            if (prunedPatterns > 0)
+                log(`deepjit: pruned ${prunedPatterns} stale patterns`);
         }
         if (!summarizer.shouldRun(config.minIntervalMs))
             return;

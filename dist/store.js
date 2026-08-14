@@ -245,6 +245,18 @@ export class DeepJitStore {
             this.updateArtifactStatus(r.name, 'disabled');
         return rows.map((r) => r.name);
     }
+    /** Delete trace rows older than the cutoff; returns the number removed. */
+    pruneTraces(olderThanMs, now = Date.now()) {
+        const res = this.db.prepare('DELETE FROM traces WHERE ts_ms < ?').run(now - olderThanMs);
+        return Number(res.changes);
+    }
+    /** Delete uncompiled patterns not seen within the retention window. */
+    prunePatterns(olderThanMs, now = Date.now()) {
+        const res = this.db
+            .prepare('DELETE FROM patterns WHERE compiled = 0 AND last_seen_ms < ?')
+            .run(now - olderThanMs);
+        return Number(res.changes);
+    }
     stats() {
         const one = (sql) => this.db.prepare(sql).get().n;
         return {

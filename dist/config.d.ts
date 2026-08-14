@@ -25,6 +25,8 @@ export interface DeepJitConfig {
     gcEnabled: boolean;
     gcStaleMs: number;
     gcProtectMs: number;
+    traceRetentionMs: number;
+    patternRetentionMs: number;
     stepTimeoutMs: number;
     flowTimeoutMs: number;
 }
