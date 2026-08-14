@@ -36,7 +36,7 @@ test('summarizer: compiles a flow artifact from a hot pattern', async () => {
   })
   const s = new Summarizer(
     store,
-    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5 },
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6 },
     fakeLlm(JSON.stringify({
       type: 'flow',
       name: 'summarize-repo',
@@ -62,7 +62,7 @@ test('summarizer: rejects invalid LLM output and retries', async () => {
   let calls = 0
   const s = new Summarizer(
     store,
-    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5 },
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6 },
     {
       async *stream(): AsyncIterable<unknown> {
         calls++
@@ -80,13 +80,35 @@ test('summarizer: rejects invalid LLM output and retries', async () => {
   store.close()
 })
 
+test('summarizer: skips low-value patterns (single-step / below value threshold)', async () => {
+  const store = new DeepJitStore(':memory:')
+  store.upsertSession('s1', 1)
+  // Single tool repeated a lot: high count but only 1 step -> low value.
+  store.upsertPattern('flow-seq', 'read_file', 10, 3, 's1', 1000)
+  // Two-step but seen barely: value 2*2=4 < 6.
+  store.upsertPattern('flow-seq', 'a>b', 2, 2, 's1', 1000)
+  let llmCalls = 0
+  const s = new Summarizer(
+    store,
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 2, topK: 5, minFlowSteps: 2, minPatternValue: 6 },
+    { async *stream(): AsyncIterable<unknown> { llmCalls++; yield { type: 'text-delta', text: '{}' } } },
+    undefined,
+    async () => ({ mode: 'filesystem' as const, filePath: '/tmp/x.json', name: 'deepjit-x' }),
+    () => {},
+  )
+  const n = await s.run()
+  assert.equal(n, 0, 'no low-value artifact compiled')
+  assert.equal(llmCalls, 0, 'no LLM call spent on low-value patterns')
+  store.close()
+})
+
 test('summarizer: drills down via sessionPersistence when available', async () => {
   const store = new DeepJitStore(':memory:')
   seedHotPattern(store)
   let drilled = false
   const s = new Summarizer(
     store,
-    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5 },
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6 },
     fakeLlm(JSON.stringify({ type: 'skill', name: 'repo-guide', description: 'guide', content: '# Guide\nDo things.' })),
     {
       async readFrom() {

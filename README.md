@@ -64,6 +64,8 @@ Override in `cordis.patch.yml` or a profile patch. Key options (full list in
 | `enabled` | `true` | master switch |
 | `summarizeIntervalMs` | `600000` | JIT cycle (mine + compile) |
 | `minRepeat` | `3` | min occurrences for a hot sequence |
+| `minFlowSteps` | `2` | min tool steps a flow must have to be compiled |
+| `minPatternValue` | `6` | min value score (`count × steps`) to justify a compile |
 | `llmProvider` / `llmModel` | `deepseek-official` / (session) | compile model; empty = reuse session model |
 | `locale` | `auto` | `en` / `zh` / `auto` (dsh locale → `LANG` → English) |
 

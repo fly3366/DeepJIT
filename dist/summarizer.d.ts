@@ -23,7 +23,17 @@ export interface SummarizerConfig {
     maxResultChars: number;
     minRepeat: number;
     topK: number;
+    minFlowSteps: number;
+    minPatternValue: number;
 }
+/** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
+export declare function patternSteps(key: string): number;
+/**
+ * Heuristic worth of compiling a pattern: repetition x length. A single tool
+ * repeated often, or a long flow seen rarely, both score low; only flows that
+ * are both repeated AND multi-step justify an LLM compile.
+ */
+export declare function patternValue(count: number, key: string): number;
 /** Minimal structural surface of ctx.llm so the module stays testable. */
 export interface LlmLike {
     stream(options: {
@@ -65,6 +75,8 @@ export declare class Summarizer {
     /** How many uncompiled traces are waiting since the last mined watermark. */
     pendingTraces(): number;
     shouldRun(minIntervalMs: number, now?: number): boolean;
+    /** Hot patterns that clear the repetition, cross-session, step, and value gates. */
+    private valuableCandidates;
     run(signal?: AbortSignal): Promise<number>;
     private buildTranscript;
     private compile;

@@ -13,6 +13,8 @@ export interface DeepJitConfig {
     ngramMin: number;
     ngramMax: number;
     topK: number;
+    minFlowSteps: number;
+    minPatternValue: number;
     skillDir: string;
     flowDir: string;
     feedbackMode: 'auto' | 'runtime';

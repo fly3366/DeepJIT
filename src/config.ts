@@ -14,6 +14,8 @@ export interface DeepJitConfig {
   ngramMin: number
   ngramMax: number
   topK: number
+  minFlowSteps: number
+  minPatternValue: number
   skillDir: string
   flowDir: string
   feedbackMode: 'auto' | 'runtime'
@@ -36,6 +38,8 @@ export const Config: Schema<DeepJitConfig> = Schema.object({
   ngramMin: Schema.number().default(2),
   ngramMax: Schema.number().default(4),
   topK: Schema.number().default(5),
+  minFlowSteps: Schema.number().default(2),
+  minPatternValue: Schema.number().default(6),
   skillDir: Schema.string().default(''),
   flowDir: Schema.string().default(''),
   feedbackMode: Schema.union(['auto', 'runtime']).default('auto'),

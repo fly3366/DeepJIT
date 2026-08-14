@@ -1,5 +1,5 @@
 import { DeepJitStore } from './store.ts'
-import type { ArtifactRow } from './store.ts'
+import type { ArtifactRow, PatternRow } from './store.ts'
 
 export interface CompiledArtifact {
   type: 'skill' | 'flow'
@@ -26,6 +26,22 @@ export interface SummarizerConfig {
   maxResultChars: number
   minRepeat: number
   topK: number
+  minFlowSteps: number
+  minPatternValue: number
+}
+
+/** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
+export function patternSteps(key: string): number {
+  return key.split('>').length
+}
+
+/**
+ * Heuristic worth of compiling a pattern: repetition x length. A single tool
+ * repeated often, or a long flow seen rarely, both score low; only flows that
+ * are both repeated AND multi-step justify an LLM compile.
+ */
+export function patternValue(count: number, key: string): number {
+  return count * patternSteps(key)
 }
 
 /** Minimal structural surface of ctx.llm so the module stays testable. */
@@ -112,8 +128,19 @@ export class Summarizer {
   shouldRun(minIntervalMs: number, now = Date.now()): boolean {
     if (this.inFlight) return false
     if (now - this.lastRunMs < minIntervalMs) return false
-    const candidates = this.store.getHotPatterns('flow-seq', this.cfg.minRepeat, 2, 1)
-    return candidates.length > 0
+    return this.valuableCandidates(1).length > 0
+  }
+
+  /** Hot patterns that clear the repetition, cross-session, step, and value gates. */
+  private valuableCandidates(limit: number): PatternRow[] {
+    return this.store
+      .getHotPatterns('flow-seq', this.cfg.minRepeat, 2, this.cfg.topK)
+      .filter(
+        (p) =>
+          patternSteps(p.key) >= this.cfg.minFlowSteps &&
+          patternValue(p.count, p.key) >= this.cfg.minPatternValue,
+      )
+      .slice(0, limit)
   }
 
   async run(signal?: AbortSignal): Promise<number> {
@@ -122,7 +149,7 @@ export class Summarizer {
     this.lastRunMs = Date.now()
     let compiled = 0
     try {
-      const candidates = this.store.getHotPatterns('flow-seq', this.cfg.minRepeat, 2, this.cfg.topK)
+      const candidates = this.valuableCandidates(this.cfg.topK)
       for (const pattern of candidates) {
         if (signal?.aborted) break
         const transcript = await this.buildTranscript(pattern.sample_session, pattern.key, signal)

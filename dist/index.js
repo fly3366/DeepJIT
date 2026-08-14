@@ -75,6 +75,8 @@ export function apply(ctx, config) {
         maxResultChars: config.maxResultChars,
         minRepeat: config.minRepeat,
         topK: config.topK,
+        minFlowSteps: config.minFlowSteps,
+        minPatternValue: config.minPatternValue,
     }, { stream: (o) => llm.stream(o) }, persistence, (artifact) => feedback.publish(artifact), log);
     const tools = ctx.tools;
     const flowExecutor = new FlowExecutor(dirs.flowDir, store, (input) => tools.execute(input), callIdFactory, config.stepTimeoutMs, config.maxResultChars, log);

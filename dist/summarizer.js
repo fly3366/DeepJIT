@@ -1,3 +1,15 @@
+/** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
+export function patternSteps(key) {
+    return key.split('>').length;
+}
+/**
+ * Heuristic worth of compiling a pattern: repetition x length. A single tool
+ * repeated often, or a long flow seen rarely, both score low; only flows that
+ * are both repeated AND multi-step justify an LLM compile.
+ */
+export function patternValue(count, key) {
+    return count * patternSteps(key);
+}
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SYSTEM_PROMPT = [
     'You are the JIT compiler of an agent harness. Recurring tool workflows must be compiled into',
@@ -45,8 +57,15 @@ export class Summarizer {
             return false;
         if (now - this.lastRunMs < minIntervalMs)
             return false;
-        const candidates = this.store.getHotPatterns('flow-seq', this.cfg.minRepeat, 2, 1);
-        return candidates.length > 0;
+        return this.valuableCandidates(1).length > 0;
+    }
+    /** Hot patterns that clear the repetition, cross-session, step, and value gates. */
+    valuableCandidates(limit) {
+        return this.store
+            .getHotPatterns('flow-seq', this.cfg.minRepeat, 2, this.cfg.topK)
+            .filter((p) => patternSteps(p.key) >= this.cfg.minFlowSteps &&
+            patternValue(p.count, p.key) >= this.cfg.minPatternValue)
+            .slice(0, limit);
     }
     async run(signal) {
         if (this.inFlight)
@@ -55,7 +74,7 @@ export class Summarizer {
         this.lastRunMs = Date.now();
         let compiled = 0;
         try {
-            const candidates = this.store.getHotPatterns('flow-seq', this.cfg.minRepeat, 2, this.cfg.topK);
+            const candidates = this.valuableCandidates(this.cfg.topK);
             for (const pattern of candidates) {
                 if (signal?.aborted)
                     break;

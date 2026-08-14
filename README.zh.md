@@ -62,6 +62,8 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 | `enabled` | `true` | 总开关 |
 | `summarizeIntervalMs` | `600000` | JIT 周期（挖掘+编译） |
 | `minRepeat` | `3` | 热点序列最少出现次数 |
+| `minFlowSteps` | `2` | 可编译流程的最少工具步数 |
+| `minPatternValue` | `6` | 触发编译的最小价值分（`count × steps`） |
 | `llmProvider` / `llmModel` | `deepseek-official` /（跟随会话） | 编译模型；留空=复用会话模型 |
 | `locale` | `auto` | `en` / `zh` / `auto`（dsh locale → `LANG` → 英文） |
 

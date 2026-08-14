@@ -101,6 +101,8 @@ export function apply(ctx: Context, config: DeepJitConfig) {
       maxResultChars: config.maxResultChars,
       minRepeat: config.minRepeat,
       topK: config.topK,
+      minFlowSteps: config.minFlowSteps,
+      minPatternValue: config.minPatternValue,
     },
     { stream: (o) => llm.stream(o) },
     persistence,
