@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { optimizeFlow } from "./compiler/optimize.js";
 import { metrics } from "./metrics.js";
+import { startLlmSpan, endLlmSpan } from "./genai.js";
 /** Prefix applied to every published artifact name. */
 export const SKILL_PREFIX = 'deepjit-';
 /** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
@@ -276,7 +277,9 @@ export class Summarizer {
             if (attempt > 0)
                 await new Promise((r) => setTimeout(r, attempt * 2000));
             let text = '';
+            let usage;
             const started = Date.now();
+            const span = startLlmSpan({ model, temperature: 0.2, maxTokens: 4000 });
             try {
                 metrics.inc('llm_calls');
                 for await (const chunk of this.llm.stream({
@@ -293,17 +296,23 @@ export class Summarizer {
                         this.log(`deepjit: llm finish ${JSON.stringify(c.reason).slice(0, 500)}`);
                     if (c.type === 'text-delta' && typeof c.text === 'string')
                         text += c.text;
+                    if (c.type === 'usage' && c.usage)
+                        usage = c.usage;
                 }
                 metrics.observe('llm_latency', Date.now() - started);
             }
             catch (err) {
                 metrics.inc('llm_errors');
+                endLlmSpan(span, usage, err);
                 lastError = err;
                 this.log(`deepjit: llm stream attempt ${attempt + 1} threw: ${err.message}`);
                 continue;
             }
-            if (text)
+            if (text) {
+                endLlmSpan(span, usage);
                 return text;
+            }
+            endLlmSpan(span, usage, new Error('LLM returned no text'));
             lastError = new Error('LLM returned no text');
         }
         throw lastError instanceof Error ? lastError : new Error(String(lastError));

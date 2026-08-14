@@ -3,6 +3,7 @@ import { DeepJitStore } from './store.ts'
 import type { ArtifactRow, PatternRow } from './store.ts'
 import { optimizeFlow, type AotContext } from './compiler/optimize.ts'
 import { metrics } from './metrics.ts'
+import { startLlmSpan, endLlmSpan } from './genai.ts'
 
 /** Prefix applied to every published artifact name. */
 export const SKILL_PREFIX = 'deepjit-'
@@ -364,7 +365,9 @@ export class Summarizer {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 2000))
       let text = ''
+      let usage: { inputTokens?: number; outputTokens?: number; reasoningTokens?: number } | undefined
       const started = Date.now()
+      const span = startLlmSpan({ model, temperature: 0.2, maxTokens: 4000 })
       try {
         metrics.inc('llm_calls')
         for await (const chunk of this.llm.stream({
@@ -376,18 +379,24 @@ export class Summarizer {
           sessionId,
           signal,
         })) {
-          const c = chunk as { type?: string; text?: string; reason?: unknown }
+          const c = chunk as { type?: string; text?: string; reason?: unknown; usage?: typeof usage }
           if (c.type === 'finish') this.log(`deepjit: llm finish ${JSON.stringify(c.reason).slice(0, 500)}`)
           if (c.type === 'text-delta' && typeof c.text === 'string') text += c.text
+          if (c.type === 'usage' && c.usage) usage = c.usage
         }
         metrics.observe('llm_latency', Date.now() - started)
       } catch (err) {
         metrics.inc('llm_errors')
+        endLlmSpan(span, usage, err)
         lastError = err
         this.log(`deepjit: llm stream attempt ${attempt + 1} threw: ${(err as Error).message}`)
         continue
       }
-      if (text) return text
+      if (text) {
+        endLlmSpan(span, usage)
+        return text
+      }
+      endLlmSpan(span, usage, new Error('LLM returned no text'))
       lastError = new Error('LLM returned no text')
     }
     throw lastError instanceof Error ? lastError : new Error(String(lastError))

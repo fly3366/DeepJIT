@@ -95,8 +95,10 @@ or the launching environment's `DEEPSEEK_API_KEY`.
 - **User data**: stores compact execution traces (tool args/results, message text).
 - **Tools**: flow steps run through `ctx.tools.execute` and the normal permission gates.
 - **Observability**: dsh's OTel telemetry covers agent sessions only; DeepJIT keeps its
-  own counters (traces flushed, compiles, LLM latency, GC/deopt/promote). Read them via
-  `deepjit_status {action:"metrics"}`.
+  own counters (traces flushed, compiles, LLM latency, GC/deopt/promote) and emits
+  **GenAI semantic-convention spans** (`gen_ai.*`: system/model/usage tokens) for each
+  LLM call. Read counters via `deepjit_status {action:"metrics"}`; spans export via
+  [dsh-o11y-plugin](https://github.com/fly3366/dsh-o11y-plugin) when present.
 
 ## Troubleshooting
 
