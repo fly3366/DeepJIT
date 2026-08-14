@@ -22,7 +22,8 @@ trace ──► SQLite ──► 热点挖掘 ──► LLM 编译 ──► ski
 
 | 项 | 值 |
 |---|---|
-| DSH 版本 | `@deepseek-ai/dsh` `0.1.0-rc.6`（已验证） |
+| DSH 版本 | `@deepseek-ai/dsh` `0.1.0-rc.6`（运行级验证） |
+| DSH mainline | `47f9438`（2026-08-14 静态核对，所用 API 无变化） |
 | 验证 commit | `5869674`（2026-08-13） |
 | Node | `^22.19 \|\| >=24` |
 | 适用 profile | `headless`、`web` |
