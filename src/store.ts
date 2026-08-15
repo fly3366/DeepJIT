@@ -390,6 +390,13 @@ export class DeepJitStore {
       .all(minUses, minSuccessRate) as unknown as ArtifactRow[]
   }
 
+  /** Active artifacts with at least minUses (candidates for quality pruning). */
+  listActiveWithUsage(minUses: number): ArtifactRow[] {
+    return this.db
+      .prepare('SELECT * FROM artifacts WHERE status = \'active\' AND use_count >= ?')
+      .all(minUses) as unknown as ArtifactRow[]
+  }
+
   /**
    * Disable active artifacts that are old enough (past the protection window)
    * and unused for longer than the stale window. Returns the disabled names.

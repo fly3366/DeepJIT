@@ -7,7 +7,7 @@ import '@deepseek-ai/dsh-tools'
 import '@deepseek-ai/cordis-plugin-timer'
 import { Config, type DeepJitConfig } from './config.ts'
 export { Config } from './config.ts'
-import { DeepJitStore } from './store.ts'
+import { DeepJitStore, qualityScore } from './store.ts'
 import { TraceCollector } from './collector.ts'
 import { mineHotPatterns } from './miner.ts'
 import { Summarizer } from './summarizer.ts'
@@ -165,6 +165,16 @@ export function apply(ctx: Context, config: DeepJitConfig) {
       metrics.inc('patterns_pruned', prunedPatterns)
       if (prunedTraces > 0) log(`deepjit: pruned ${prunedTraces} old trace rows`)
       if (prunedPatterns > 0) log(`deepjit: pruned ${prunedPatterns} stale patterns`)
+      if (config.minQuality > 0) {
+        for (const row of store.listActiveWithUsage(config.qualityMinUses)) {
+          if (qualityScore(row.use_count, row.success_count) < config.minQuality) {
+            feedback.disable(row.name)
+            store.updateArtifactStatus(row.name, 'disabled')
+            metrics.inc('quality_pruned')
+            log(`deepjit: quality-pruned low-quality artifact ${row.name}`)
+          }
+        }
+      }
     }
     const tier = runTiering(store, {
       deoptMinUses: config.deoptMinUses,

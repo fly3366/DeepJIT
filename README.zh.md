@@ -78,6 +78,7 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 | `dryRun` | `false` | 产物以禁用态发布，需经 `deepjit_status` 手动启用 |
 | `traceRetentionMs` / `patternRetentionMs` | 7天 / 7天 | 剪枝超期的 trace 行 / 未编译 pattern |
 | `deoptMinUses` / `deoptMaxSuccessRate` | `5` / `0.5` | 使用≥N 次且成功率≤此值的 flow 被禁用（去优化） |
+| `qualityMinUses` / `minQuality` | `5` / `0` | 使用≥N 次且质量分<minQuality 的活跃产物被禁用（0=关） |
 | `promoteMinUses` / `promoteMinSuccessRate` | `5` / `0.8` | 高频且可靠的 skill 其 pattern 重编译为 flow（升级） |
 | `llmProvider` / `llmModel` | `deepseek-official` /（跟随会话） | 编译模型；留空=复用会话模型 |
 | `locale` | `auto` | `en` / `zh` / `auto`（dsh locale → `LANG` → 英文） |

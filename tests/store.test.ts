@@ -2,6 +2,20 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DeepJitStore, qualityScore } from '../src/store.ts'
 
+test('store: listActiveWithUsage returns only active artifacts meeting min uses', () => {
+  const store = new DeepJitStore(':memory:')
+  store.insertArtifact({ type: 'flow', name: 'deepjit-hot', file_path: '/tmp/a.json', status: 'active' })
+  store.insertArtifact({ type: 'flow', name: 'deepjit-cold', file_path: '/tmp/b.json', status: 'active' })
+  store.insertArtifact({ type: 'flow', name: 'deepjit-off', file_path: '/tmp/c.json', status: 'disabled' })
+  for (let i = 0; i < 6; i++) store.recordUsage('deepjit-hot', 1000)
+  for (let i = 0; i < 2; i++) store.recordUsage('deepjit-cold', 1000)
+  for (let i = 0; i < 9; i++) store.recordUsage('deepjit-off', 1000)
+
+  const rows = store.listActiveWithUsage(5)
+  assert.deepEqual(rows.map((r) => r.name), ['deepjit-hot'])
+  store.close()
+})
+
 test('store: qualityScore combines success rate and damped usage volume', () => {
   assert.equal(qualityScore(0, 0), 0)
   assert.equal(qualityScore(10, 10), Math.round(Math.log2(11) * 100) / 100) // rate 1

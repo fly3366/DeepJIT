@@ -32,6 +32,8 @@ export interface DeepJitConfig {
   patternRetentionMs: number
   deoptMinUses: number
   deoptMaxSuccessRate: number
+  qualityMinUses: number
+  minQuality: number
   promoteMinUses: number
   promoteMinSuccessRate: number
   stepTimeoutMs: number
@@ -70,6 +72,8 @@ export const Config: Schema<DeepJitConfig> = Schema.object({
   patternRetentionMs: Schema.number().default(7 * 24 * 3600 * 1000),
   deoptMinUses: Schema.number().default(5),
   deoptMaxSuccessRate: Schema.number().default(0.5),
+  qualityMinUses: Schema.number().default(5),
+  minQuality: Schema.number().default(0),
   promoteMinUses: Schema.number().default(5),
   promoteMinSuccessRate: Schema.number().default(0.8),
   stepTimeoutMs: Schema.number().default(120_000),

@@ -81,6 +81,7 @@ Override in `cordis.patch.yml` or a profile patch. Key options (full list in
 | `dryRun` | `false` | publish artifacts as disabled; enable manually via `deepjit_status` |
 | `traceRetentionMs` / `patternRetentionMs` | 7d / 7d | prune trace rows / stale uncompiled patterns older than this |
 | `deoptMinUses` / `deoptMaxSuccessRate` | `5` / `0.5` | disable a flow used ≥N times with success rate ≤ this (deoptimization) |
+| `qualityMinUses` / `minQuality` | `5` / `0` | disable active artifacts used ≥N times whose quality score < minQuality (0 = off) |
 | `promoteMinUses` / `promoteMinSuccessRate` | `5` / `0.8` | recompile a hot, reliable skill's pattern as a flow (promotion) |
 | `llmProvider` / `llmModel` | `deepseek-official` / (session) | compile model; empty = reuse session model |
 | `locale` | `auto` | `en` / `zh` / `auto` (dsh locale → `LANG` → English) |
