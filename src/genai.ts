@@ -44,6 +44,7 @@ export function startLlmSpan(input: LlmSpanInput): Span {
     kind: SpanKind.CLIENT,
     attributes: {
       'gen_ai.operation.name': input.operation ?? 'chat',
+      'gen_ai.agent.name': 'deepjit',
       'gen_ai.system': input.system ?? 'deepseek',
       'gen_ai.request.model': input.model,
       ...(input.temperature !== undefined ? { 'gen_ai.request.temperature': input.temperature } : {}),
