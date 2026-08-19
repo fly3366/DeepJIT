@@ -71,6 +71,6 @@ session/event + tools/result → collector → SQLite traces (~/.dsh/deepjit/dee
 
 ## Dependency Notes
 
-- Runtime deps are pinned (`@deepseek-ai/*` 0.1.0-rc.7, cordis 4.0.1) because
+- Runtime deps are pinned (`@deepseek-ai/*` 0.1.0-rc.8, cordis 4.0.1) because
   dsh is pre-release and registry baselines drift from master.
 - Node `^22.19 || >=24` (node:sqlite required).
