@@ -177,6 +177,6 @@ export class ArtifactFeedback {
   }
 
   disposeAll(): void {
-    for (const full of [...this.runtimeRegistrations.keys()]) this.unregisterRuntime(full)
+    for (const full of this.runtimeRegistrations.keys()) this.unregisterRuntime(full)
   }
 }

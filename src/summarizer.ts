@@ -178,7 +178,7 @@ export class Summarizer {
               continue
             }
           }
-          const { mode, filePath, name: publishedName } = await this.publish({ ...output, sourcePatternId: pattern.id })
+          const { mode, filePath } = await this.publish({ ...output, sourcePatternId: pattern.id })
           this.store.insertArtifact({
             type: output.type,
             name: finalName,

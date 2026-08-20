@@ -44,8 +44,12 @@ export function extractKeywords(text: string, maxPerText = 12): string[] {
     const lower = tok.toLowerCase()
     if (lower.length >= 2 && !STOPWORDS.has(lower)) out.push(lower)
   }
+  const isAscii = (s: string): boolean => {
+    for (const ch of s) if ((ch.codePointAt(0) ?? 0) > 0x7f) return false
+    return true
+  }
   for (const word of text.split(/[^\p{L}\p{N}]+/u)) {
-    if (/^[\x00-\x7F]+$/.test(word)) push(word)
+    if (isAscii(word)) push(word)
   }
   for (const pair of text.match(/[\u4e00-\u9fff]{2}/g) ?? []) push(pair)
   return out.slice(0, maxPerText)
