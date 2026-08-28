@@ -30,8 +30,8 @@ traces ──► SQLite ──► hot-path mining ──► LLM compile ──�
 
 | Item | Value |
 |---|---|
-| DSH version | `@deepseek-ai/dsh` `0.1.0-rc.8` (runtime-verified) |
-| DSH mainline | `b150a551` (static-checked 2026-08-21; used APIs unchanged) |
+| DSH version | `@deepseek-ai/dsh` `0.1.1-rc.2` (runtime-verified) |
+| DSH mainline | `cd5ef814` (static-checked 2026-08-28; used APIs unchanged) |
 | Verified commit | `5869674` (2026-08-13) |
 | Node | `^22.19 \|\| >=24` |
 | Profiles | `headless`, `web` |
