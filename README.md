@@ -41,11 +41,14 @@ dsh is pre-release; APIs may drift. Pins `@deepseek-ai/*` to `0.1.0-rc.6`.
 ## Install / Uninstall
 
 ```sh
-# install (git, no npm release needed)
+# install from npm (published as @fly3366/deepjit)
+dsh plugin --profile web add @fly3366/deepjit
+
+# or install from git (no npm release needed)
 dsh plugin --profile web add github:fly3366/DeepJIT
 
 # disable for one profile
-dsh plugin --profile web remove deepjit
+dsh plugin --profile web remove @fly3366/deepjit
 
 # fully remove local data
 rm -rf ~/.dsh/deepjit

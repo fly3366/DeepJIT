@@ -38,11 +38,14 @@ dsh 处于预发布阶段，API 可能变化；依赖 pin 到 `@deepseek-ai/*` `
 ## 安装 / 卸载
 
 ```sh
-# 安装（git 直装，无需 npm 发布）
+# 从 npm 安装（发布为 @fly3366/deepjit）
+dsh plugin --profile web add @fly3366/deepjit
+
+# 或 git 直装（无需 npm 发布）
 dsh plugin --profile web add github:fly3366/DeepJIT
 
 # 从某个 profile 移除
-dsh plugin --profile web remove deepjit
+dsh plugin --profile web remove @fly3366/deepjit
 
 # 彻底删除本地数据
 rm -rf ~/.dsh/deepjit
