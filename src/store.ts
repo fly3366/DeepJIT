@@ -187,23 +187,36 @@ export class DeepJitStore {
     this.db.exec('BEGIN')
     try {
       const lastBySession = new Map<string, number>()
+      const tsBySession = new Map<string, number>()
       for (const row of rows) {
         stmt.run(row.session_id, row.turn, row.step, row.kind, row.seq, row.ts_ms, row.payload)
-        const prev = lastBySession.get(row.session_id) ?? -1
-        if (row.seq > prev) lastBySession.set(row.session_id, row.seq)
+        if (row.seq > (lastBySession.get(row.session_id) ?? -1)) lastBySession.set(row.session_id, row.seq)
+        if (row.ts_ms > (tsBySession.get(row.session_id) ?? 0)) tsBySession.set(row.session_id, row.ts_ms)
       }
       const upd = this.db.prepare(
         'UPDATE sessions SET last_seq = MAX(last_seq, ?), ended_ms = MAX(ended_ms, ?) WHERE id = ?',
       )
       for (const [sid, seq] of lastBySession) {
-        const ts = rows.filter((r) => r.session_id === sid).reduce((m, r) => Math.max(m, r.ts_ms), 0)
-        upd.run(seq, ts, sid)
+        upd.run(seq, tsBySession.get(sid) ?? 0, sid)
       }
       this.db.exec('COMMIT')
     } catch (err) {
       this.db.exec('ROLLBACK')
       throw err
     }
+  }
+
+  /** Bounded read of the most recent trace rows of the given kinds (ascending). */
+  readRecentTraces(sessionId: string, kinds: TraceKind[], limit: number): TraceRow[] {
+    const placeholders = kinds.map(() => '?').join(',')
+    const desc = this.db
+      .prepare(
+        `SELECT session_id, turn, step, kind, seq, ts_ms, payload
+         FROM traces WHERE session_id = ? AND kind IN (${placeholders})
+         ORDER BY seq DESC LIMIT ?`,
+      )
+      .all(sessionId, ...kinds, limit) as unknown as TraceRow[]
+    return desc.reverse()
   }
 
   /** Tool / user traces after the summarization watermark, ordered by seq. */

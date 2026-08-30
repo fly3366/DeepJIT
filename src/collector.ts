@@ -157,7 +157,7 @@ export class TraceCollector {
         if (!callId) break
         const call = this.pendingCalls.get(callId)
         this.pendingCalls.delete(callId)
-        if (!call || isJitTool(call.name)) break
+        if (!call || !call.name || isJitTool(call.name)) break
         const text = textOfMessage(data.message, this.maxResultChars)
         const raw = this.rawValues.get(callId)
         this.rawValues.delete(callId)

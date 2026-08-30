@@ -238,7 +238,7 @@ export class Summarizer {
     signal?: AbortSignal,
   ): Promise<{ text: string; tools: string[] }> {
     const names = key.split('>')
-    const toolRows = this.store.readTracesSince(sessionId, 0, ['tool'], this.cfg.transcriptMaxRows)
+    const toolRows = this.store.readRecentTraces(sessionId, ['tool'], this.cfg.transcriptMaxRows)
     const seqs = toolRows.map((r) => {
       try {
         return { seq: r.seq, name: (JSON.parse(r.payload) as { name?: string }).name ?? '' }

@@ -134,7 +134,7 @@ export class TraceCollector {
                     break;
                 const call = this.pendingCalls.get(callId);
                 this.pendingCalls.delete(callId);
-                if (!call || isJitTool(call.name))
+                if (!call || !call.name || isJitTool(call.name))
                     break;
                 const text = textOfMessage(data.message, this.maxResultChars);
                 const raw = this.rawValues.get(callId);

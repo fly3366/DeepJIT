@@ -56,6 +56,8 @@ export declare class DeepJitStore {
     };
     /** Insert a batch of traces in one transaction and advance the session watermark. */
     insertTraces(rows: TraceRow[]): void;
+    /** Bounded read of the most recent trace rows of the given kinds (ascending). */
+    readRecentTraces(sessionId: string, kinds: TraceKind[], limit: number): TraceRow[];
     /** Tool / user traces after the summarization watermark, ordered by seq. */
     readTracesSince(sessionId: string, fromSeq: number, kinds: TraceKind[], limit?: number): TraceRow[];
     advanceSummarizeWatermark(sessionId: string, upToSeq: number): void;
