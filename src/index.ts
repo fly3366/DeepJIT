@@ -110,6 +110,7 @@ export function apply(ctx: Context, config: DeepJitConfig) {
       minFlowSteps: config.minFlowSteps,
       minPatternValue: config.minPatternValue,
       transcriptMaxRows: config.transcriptMaxRows,
+      compileCandidates: config.compileCandidates,
     },
     { stream: (o) => llm.stream(o) },
     persistence,

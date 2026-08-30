@@ -36,7 +36,7 @@ test('summarizer: compiles a flow artifact from a hot pattern', async () => {
   })
   const s = new Summarizer(
     store,
-    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000 },
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 1 },
     fakeLlm(JSON.stringify({
       type: 'flow',
       name: 'summarize-repo',
@@ -62,7 +62,7 @@ test('summarizer: rejects invalid LLM output and retries', async () => {
   let calls = 0
   const s = new Summarizer(
     store,
-    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000 },
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 2 },
     {
       async *stream(): AsyncIterable<unknown> {
         calls++
@@ -75,8 +75,34 @@ test('summarizer: rejects invalid LLM output and retries', async () => {
     () => {},
   )
   const n = await s.run()
-  assert.equal(n, 0, 'no artifact for invalid outputs')
-  assert.equal(calls, 2, 'retried once')
+  assert.equal(n, 0, 'no artifact when all candidates invalid')
+  assert.equal(calls, 2, 'two candidates generated')
+  store.close()
+})
+
+test('summarizer: best-of-N picks the valid candidate', async () => {
+  const store = new DeepJitStore(':memory:')
+  seedHotPattern(store)
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'deepjit-bon-'))
+  let calls = 0
+  const s = new Summarizer(
+    store,
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 2 },
+    {
+      async *stream(): AsyncIterable<unknown> {
+        calls++
+        if (calls === 1) yield { type: 'text-delta', text: 'not json at all' }
+        else yield { type: 'text-delta', text: JSON.stringify({ type: 'flow', name: 'good-flow', description: 'd', steps: [{ tool: 'read_file', args: {} }] }) }
+      },
+    },
+    undefined,
+    async (a) => ({ mode: 'filesystem' as const, filePath: `/tmp/${a.name}.json`, name: `deepjit-${a.name}` }),
+    () => {},
+  )
+  const n = await s.run()
+  assert.equal(n, 1, 'valid candidate published')
+  assert.ok(store.getArtifact('deepjit-good-flow'), 'artifact stored')
+  rmSync(dir, { recursive: true, force: true })
   store.close()
 })
 
@@ -97,7 +123,7 @@ test('summarizer: same-name collision defers to LLM compare (skip keeps existing
   let i = 0
   const s = new Summarizer(
     store,
-    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000 },
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 1 },
     { async *stream(): AsyncIterable<unknown> { yield { type: 'text-delta', text: scripted[i++] ?? '{"action":"skip"}' } } },
     undefined,
     async () => ({ mode: 'filesystem' as const, filePath: existingFile, name: 'deepjit-summarize-repo' }),
@@ -121,7 +147,7 @@ test('summarizer: skips low-value patterns (single-step / below value threshold)
   let llmCalls = 0
   const s = new Summarizer(
     store,
-    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 2, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000 },
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 2, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 1 },
     { async *stream(): AsyncIterable<unknown> { llmCalls++; yield { type: 'text-delta', text: '{}' } } },
     undefined,
     async () => ({ mode: 'filesystem' as const, filePath: '/tmp/x.json', name: 'deepjit-x' }),
@@ -139,7 +165,7 @@ test('summarizer: drills down via sessionPersistence when available', async () =
   let drilled = false
   const s = new Summarizer(
     store,
-    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000 },
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 1 },
     fakeLlm(JSON.stringify({ type: 'skill', name: 'repo-guide', description: 'guide', content: '# Guide\nDo things.' })),
     {
       async readFrom() {

@@ -36,6 +36,7 @@ export interface SummarizerConfig {
   minFlowSteps: number
   minPatternValue: number
   transcriptMaxRows: number
+  compileCandidates: number
 }
 
 /** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
@@ -325,33 +326,47 @@ export class Summarizer {
     const model = sessionContext.model ?? this.cfg.llmModel
     if (!model) throw new Error('no model available: configure llmModel or run a session first')
 
+    const n = Math.max(1, this.cfg.compileCandidates)
     let lastError = ''
-    for (let attempt = 0; attempt < 2; attempt++) {
+    let best: CompiledArtifact | undefined
+    let bestScore = -1
+    for (let i = 0; i < n; i++) {
       const userContent = lastError
         ? `${userMsg}\n\nPrevious output was rejected: ${lastError}\nOutput only valid JSON.`
         : userMsg
-      const raw = await this.callLlm(
-        [
-          { role: 'system', content: [{ type: 'text', text: SYSTEM_PROMPT }] },
-          { role: 'user', content: [{ type: 'text', text: userContent }] },
-        ],
-        provider,
-        model,
-        sampleSession,
-        signal,
-      )
+      let raw: string
+      try {
+        raw = await this.callLlm(
+          [
+            { role: 'system', content: [{ type: 'text', text: SYSTEM_PROMPT }] },
+            { role: 'user', content: [{ type: 'text', text: userContent }] },
+          ],
+          provider,
+          model,
+          sampleSession,
+          signal,
+        )
+      } catch (err) {
+        lastError = (err as Error).message
+        continue
+      }
       try {
         const parsed = parseJson(raw)
         const artifact = validateArtifact(parsed, transcript.tools)
         if (artifact.type === 'flow' && this.aot) {
           optimizeFlow(artifact.steps ?? [], this.aot)
         }
-        return artifact
+        const score = scoreArtifact(artifact)
+        if (score > bestScore) {
+          bestScore = score
+          best = artifact
+        }
       } catch (err) {
         lastError = (err as Error).message
       }
     }
-    throw new Error(`LLM output not usable after retries: ${lastError}`)
+    if (!best) throw new Error(`LLM output not usable after ${n} candidate(s): ${lastError}`)
+    return best
   }
 
   private async callLlm(
@@ -535,6 +550,11 @@ function validateArtifact(parsed: unknown, knownTools: string[]): CompiledArtifa
     summary: `JIT-compiled flow (${steps.length} steps) from recurring workflow; description: ${description}`,
     sourcePatternId: -1,
   }
+}
+
+/** Rate a validated artifact for best-of-N selection (higher = more specific). */
+function scoreArtifact(a: CompiledArtifact): number {
+  return a.type === 'flow' ? 1000 + (a.steps?.length ?? 0) : (a.content?.length ?? 0)
 }
 
 export type { ArtifactRow }

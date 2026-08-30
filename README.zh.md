@@ -68,6 +68,7 @@ dsh --profile headless "用 deepjit_status 列出已编译产物"
 | `summarizeIntervalMs` | `600000` | JIT 周期（挖掘+编译） |
 | `minRepeat` | `3` | 热点序列最少出现次数 |
 | `argumentAware` | `false` | 挖掘序列中加入排序后的参数键签名 |
+| `compileCandidates` | `1` | 每次编译生成 N 个候选取最优；越大质量越好、LLM 调用越多 |
 | `minFlowSteps` | `2` | 可编译流程的最少工具步数 |
 | `minPatternValue` | `6` | 触发编译的最小价值分（`count × steps`） |
 | `flushBatchSize` | `200` | 每批写入 SQLite 的 trace 行数 |
