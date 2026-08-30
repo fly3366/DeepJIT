@@ -114,6 +114,13 @@ npm run typecheck && npm run build
 
 见 [CONTRIBUTING.md](CONTRIBUTING.md)、[AGENTS.md](AGENTS.md)。
 
+## 相关工作
+
+"即时编译重复工作流"的思路与 best-of-N 编译选择借鉴自
+[JIT-Agent — Scaling Harness Intelligence via Just-in-Time Harness Evolution](https://arxiv.org/abs/2608.25593)
+（[bingreeky/JIT](https://github.com/bingreeky/JIT)）。DeepJIT 将该 harness 演化概念
+适配为在运行的 dsh 会话内在线编译重复工具流为 skill/flow，而非合成整个 harness。
+
 ## 许可与安全
 
 [MIT](LICENSE)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。

@@ -120,6 +120,15 @@ npm run typecheck && npm run build
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
+## Related work
+
+The "compile recurring workflows just-in-time" idea and the best-of-N compile
+selection are inspired by
+[JIT-Agent — Scaling Harness Intelligence via Just-in-Time Harness Evolution](https://arxiv.org/abs/2608.25593)
+([bingreeky/JIT](https://github.com/bingreeky/JIT)). DeepJIT adapts that
+harness-evolution concept to run online inside a live dsh session, compiling
+recurring tool flows into skills/flows rather than synthesizing whole harnesses.
+
 ## License & security
 
 [MIT](LICENSE). Report vulnerabilities privately per [SECURITY.md](SECURITY.md).
