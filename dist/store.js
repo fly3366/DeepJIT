@@ -56,6 +56,16 @@ CREATE TABLE IF NOT EXISTS artifacts (
   last_used_ms INTEGER
 );
 `;
+/**
+ * Heuristic artifact quality: success rate weighted by usage volume.
+ * log2 dampens volume so a rarely-used artifact isn't over-rated.
+ */
+export function qualityScore(useCount, successCount) {
+    if (useCount <= 0)
+        return 0;
+    const rate = Math.min(1, successCount / useCount);
+    return Math.round(rate * Math.log2(1 + useCount) * 100) / 100;
+}
 export class DeepJitStore {
     db;
     constructor(dbPath) {
@@ -257,6 +267,12 @@ export class DeepJitStore {
            AND source_pattern_id > 0
            AND (CAST(success_count AS REAL) / use_count) >= ?`)
             .all(minUses, minSuccessRate);
+    }
+    /** Active artifacts with at least minUses (candidates for quality pruning). */
+    listActiveWithUsage(minUses) {
+        return this.db
+            .prepare('SELECT * FROM artifacts WHERE status = \'active\' AND use_count >= ?')
+            .all(minUses);
     }
     /**
      * Disable active artifacts that are old enough (past the protection window)

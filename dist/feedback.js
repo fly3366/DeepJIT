@@ -112,6 +112,7 @@ export class ArtifactFeedback {
             this.runtimeRegistrations.set(name, next);
             old?.();
         });
+        watcher.unref?.();
         this.watchers.set(name, () => {
             watcher.close();
             this.runtimeRegistrations.delete(name);
@@ -119,9 +120,12 @@ export class ArtifactFeedback {
         });
         this.log(`deepjit: skill ${name} not discovered via filesystem provider, registered at runtime`);
     }
-    /** Rename skill dir / flow file to *.disabled so watchers unload it. */
+    /** Accept either the prefixed or bare artifact name. */
+    full(name) {
+        return name.startsWith(SKILL_PREFIX) ? name : `${SKILL_PREFIX}${name}`;
+    }
     disable(name) {
-        const full = `${SKILL_PREFIX}${name}`;
+        const full = this.full(name);
         this.unregisterRuntime(full);
         const skillPath = path.join(this.dirs.skillDir, full);
         const flowPath = path.join(this.dirs.flowDir, `${full}.json`);
@@ -134,7 +138,7 @@ export class ArtifactFeedback {
     }
     /** Reverse of disable. */
     enable(name) {
-        const full = `${SKILL_PREFIX}${name}`;
+        const full = this.full(name);
         const skillPath = path.join(this.dirs.skillDir, full);
         const flowPath = path.join(this.dirs.flowDir, `${full}.json`);
         if (existsSync(`${skillPath}.disabled`) && !existsSync(skillPath)) {
@@ -145,7 +149,7 @@ export class ArtifactFeedback {
         }
     }
     remove(name) {
-        const full = `${SKILL_PREFIX}${name}`;
+        const full = this.full(name);
         this.unregisterRuntime(full);
         const skillPath = path.join(this.dirs.skillDir, full);
         const flowPath = path.join(this.dirs.flowDir, `${full}.json`);
@@ -161,7 +165,7 @@ export class ArtifactFeedback {
         this.watchers.get(full)?.();
     }
     disposeAll() {
-        for (const full of [...this.runtimeRegistrations.keys()])
+        for (const full of this.runtimeRegistrations.keys())
             this.unregisterRuntime(full);
     }
 }

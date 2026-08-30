@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { optimizeFlow } from "./compiler/optimize.js";
 import { metrics } from "./metrics.js";
-import { startLlmSpan, endLlmSpan } from "./genai.js";
+import { startLlmSpan, endLlmSpan, recordTokenUsage } from "./genai.js";
 /** Prefix applied to every published artifact name. */
 export const SKILL_PREFIX = 'deepjit-';
 /** Number of tool steps encoded in a flow-seq pattern key ("a>b>c" => 3). */
@@ -102,7 +102,7 @@ export class Summarizer {
                             continue;
                         }
                     }
-                    const { mode, filePath, name: publishedName } = await this.publish({ ...output, sourcePatternId: pattern.id });
+                    const { mode, filePath } = await this.publish({ ...output, sourcePatternId: pattern.id });
                     this.store.insertArtifact({
                         type: output.type,
                         name: finalName,
@@ -248,28 +248,44 @@ export class Summarizer {
         const model = sessionContext.model ?? this.cfg.llmModel;
         if (!model)
             throw new Error('no model available: configure llmModel or run a session first');
+        const n = Math.max(1, this.cfg.compileCandidates);
         let lastError = '';
-        for (let attempt = 0; attempt < 2; attempt++) {
+        let best;
+        let bestScore = -1;
+        for (let i = 0; i < n; i++) {
             const userContent = lastError
                 ? `${userMsg}\n\nPrevious output was rejected: ${lastError}\nOutput only valid JSON.`
                 : userMsg;
-            const raw = await this.callLlm([
-                { role: 'system', content: [{ type: 'text', text: SYSTEM_PROMPT }] },
-                { role: 'user', content: [{ type: 'text', text: userContent }] },
-            ], provider, model, sampleSession, signal);
+            let raw;
+            try {
+                raw = await this.callLlm([
+                    { role: 'system', content: [{ type: 'text', text: SYSTEM_PROMPT }] },
+                    { role: 'user', content: [{ type: 'text', text: userContent }] },
+                ], provider, model, sampleSession, signal);
+            }
+            catch (err) {
+                lastError = err.message;
+                continue;
+            }
             try {
                 const parsed = parseJson(raw);
                 const artifact = validateArtifact(parsed, transcript.tools);
                 if (artifact.type === 'flow' && this.aot) {
                     optimizeFlow(artifact.steps ?? [], this.aot);
                 }
-                return artifact;
+                const score = scoreArtifact(artifact);
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = artifact;
+                }
             }
             catch (err) {
                 lastError = err.message;
             }
         }
-        throw new Error(`LLM output not usable after retries: ${lastError}`);
+        if (!best)
+            throw new Error(`LLM output not usable after ${n} candidate(s): ${lastError}`);
+        return best;
     }
     async callLlm(messages, provider, model, sessionId, signal) {
         let lastError;
@@ -310,6 +326,8 @@ export class Summarizer {
             }
             if (text) {
                 endLlmSpan(span, usage);
+                if (usage)
+                    recordTokenUsage(model, usage);
                 return text;
             }
             endLlmSpan(span, usage, new Error('LLM returned no text'));
@@ -446,5 +464,9 @@ function validateArtifact(parsed, knownTools) {
         summary: `JIT-compiled flow (${steps.length} steps) from recurring workflow; description: ${description}`,
         sourcePatternId: -1,
     };
+}
+/** Rate a validated artifact for best-of-N selection (higher = more specific). */
+function scoreArtifact(a) {
+    return a.type === 'flow' ? 1000 + (a.steps?.length ?? 0) : (a.content?.length ?? 0);
 }
 //# sourceMappingURL=summarizer.js.map

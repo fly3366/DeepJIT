@@ -38,6 +38,11 @@ export interface ArtifactRow {
     last_used_ms: number | null;
     success_count: number;
 }
+/**
+ * Heuristic artifact quality: success rate weighted by usage volume.
+ * log2 dampens volume so a rarely-used artifact isn't over-rated.
+ */
+export declare function qualityScore(useCount: number, successCount: number): number;
 export declare class DeepJitStore {
     private db;
     constructor(dbPath: string);
@@ -96,6 +101,8 @@ export declare class DeepJitStore {
     listDeoptCandidates(minUses: number, maxSuccessRate: number): ArtifactRow[];
     /** Skills used often and reliably — candidates for promotion to flow (tier 2). */
     listPromoteCandidates(minUses: number, minSuccessRate: number): ArtifactRow[];
+    /** Active artifacts with at least minUses (candidates for quality pruning). */
+    listActiveWithUsage(minUses: number): ArtifactRow[];
     /**
      * Disable active artifacts that are old enough (past the protection window)
      * and unused for longer than the stale window. Returns the disabled names.

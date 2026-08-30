@@ -15,12 +15,15 @@ export interface DeepJitConfig {
     minRepeat: number;
     ngramMin: number;
     ngramMax: number;
+    argumentAware: boolean;
+    compileCandidates: number;
     topK: number;
     minFlowSteps: number;
     minPatternValue: number;
     skillDir: string;
     flowDir: string;
     feedbackMode: 'auto' | 'runtime';
+    dryRun: boolean;
     locale: 'auto' | 'en' | 'zh';
     gcEnabled: boolean;
     gcStaleMs: number;
@@ -29,6 +32,8 @@ export interface DeepJitConfig {
     patternRetentionMs: number;
     deoptMinUses: number;
     deoptMaxSuccessRate: number;
+    qualityMinUses: number;
+    minQuality: number;
     promoteMinUses: number;
     promoteMinSuccessRate: number;
     stepTimeoutMs: number;

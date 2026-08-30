@@ -1,5 +1,5 @@
 {
-  "name": "deepjit",
+  "name": "@fly3366/deepjit",
   "version": "0.1.0",
   "description": "DeepJIT: JIT-compile repeated agent workflows into skills and flow templates for deepseek-harness (dsh)",
   "license": "MIT",

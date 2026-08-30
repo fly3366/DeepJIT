@@ -1,4 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
+import { qualityScore } from "./store.js";
 import { t } from "./i18n.js";
 import { metrics } from "./metrics.js";
 /** The deepjit_status tool: inspect and manage compiled artifacts. */
@@ -46,7 +47,8 @@ export class StatusTool {
                     return t('status.empty');
                 const lines = rows.map((r) => {
                     const fileOk = existsSync(r.file_path);
-                    return `- [${r.status}] ${r.type} ${r.name} — ${r.description ?? ''} (${fileOk ? 'file ok' : 'MISSING FILE'}, feedback: ${r.feedback_mode ?? 'n/a'})`;
+                    const q = qualityScore(r.use_count, r.success_count);
+                    return `- [${r.status}] ${r.type} ${r.name} — ${r.description ?? ''} (quality: ${q}, uses: ${r.use_count}, ${fileOk ? 'file ok' : 'MISSING FILE'})`;
                 });
                 return `deepjit artifacts (${rows.length}):\n${lines.join('\n')}`;
             }

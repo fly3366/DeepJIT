@@ -32,7 +32,8 @@ export declare class ArtifactFeedback {
     }>;
     private waitForDiscovery;
     private registerRuntime;
-    /** Rename skill dir / flow file to *.disabled so watchers unload it. */
+    /** Accept either the prefixed or bare artifact name. */
+    private full;
     disable(name: string): void;
     /** Reverse of disable. */
     enable(name: string): void;

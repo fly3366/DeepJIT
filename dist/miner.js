@@ -1,3 +1,17 @@
+/** Build the mining token for one tool row; optionally argument-aware. */
+function toolToken(p, argumentAware) {
+    const name = p.name ?? '';
+    if (!argumentAware)
+        return name;
+    try {
+        const args = JSON.parse(p.args ?? '{}');
+        const keys = Object.keys(args).sort().join('+');
+        return keys ? `${name}(${keys})` : name;
+    }
+    catch {
+        return name;
+    }
+}
 const STOPWORDS = new Set([
     'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'to', 'of', 'in', 'on',
     'for', 'and', 'or', 'with', 'at', 'by', 'from', 'as', 'it', 'its', 'this', 'that',
@@ -13,8 +27,14 @@ export function extractKeywords(text, maxPerText = 12) {
         if (lower.length >= 2 && !STOPWORDS.has(lower))
             out.push(lower);
     };
+    const isAscii = (s) => {
+        for (const ch of s)
+            if ((ch.codePointAt(0) ?? 0) > 0x7f)
+                return false;
+        return true;
+    };
     for (const word of text.split(/[^\p{L}\p{N}]+/u)) {
-        if (/^[\x00-\x7F]+$/.test(word))
+        if (isAscii(word))
             push(word);
     }
     for (const pair of text.match(/[\u4e00-\u9fff]{2}/g) ?? [])
@@ -34,7 +54,7 @@ export function mineHotPatterns(store, cfg) {
         const names = toolRows
             .map((r) => {
             try {
-                return JSON.parse(r.payload).name ?? '';
+                return toolToken(JSON.parse(r.payload), cfg.argumentAware ?? false);
             }
             catch {
                 return '';

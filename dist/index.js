@@ -5,7 +5,7 @@ import '@deepseek-ai/dsh-session';
 import '@deepseek-ai/dsh-tools';
 import '@deepseek-ai/cordis-plugin-timer';
 export { Config } from "./config.js";
-import { DeepJitStore } from "./store.js";
+import { DeepJitStore, qualityScore } from "./store.js";
 import { TraceCollector } from "./collector.js";
 import { mineHotPatterns } from "./miner.js";
 import { Summarizer } from "./summarizer.js";
@@ -81,7 +81,16 @@ export function apply(ctx, config) {
         minFlowSteps: config.minFlowSteps,
         minPatternValue: config.minPatternValue,
         transcriptMaxRows: config.transcriptMaxRows,
-    }, { stream: (o) => llm.stream(o) }, persistence, (artifact) => feedback.publish(artifact), log, { toolExists: (name) => name === 'deepjit_flow' || tools.get(name) !== undefined });
+        compileCandidates: config.compileCandidates,
+    }, { stream: (o) => llm.stream(o) }, persistence, async (artifact) => {
+        const published = await feedback.publish(artifact);
+        if (config.dryRun) {
+            feedback.disable(published.name);
+            store.updateArtifactStatus(published.name, 'disabled');
+            log(`deepjit: dry-run published "${published.name}" as disabled (enable via deepjit_status)`);
+        }
+        return published;
+    }, log, { toolExists: (name) => name === 'deepjit_flow' || tools.get(name) !== undefined });
     const flowExecutor = new FlowExecutor(dirs.flowDir, store, (input) => tools.execute(input), callIdFactory, config.stepTimeoutMs, config.maxResultChars, log);
     const statusTool = new StatusTool(store, feedback, dirs, log);
     // capture
@@ -99,6 +108,7 @@ export function apply(ctx, config) {
             ngramMin: config.ngramMin,
             ngramMax: config.ngramMax,
             maxRows: config.minerMaxRows,
+            argumentAware: config.argumentAware,
         });
         if (config.gcEnabled) {
             const removed = store.gcStale(Date.now(), config.gcStaleMs, config.gcProtectMs);
@@ -113,6 +123,16 @@ export function apply(ctx, config) {
                 log(`deepjit: pruned ${prunedTraces} old trace rows`);
             if (prunedPatterns > 0)
                 log(`deepjit: pruned ${prunedPatterns} stale patterns`);
+            if (config.minQuality > 0) {
+                for (const row of store.listActiveWithUsage(config.qualityMinUses)) {
+                    if (qualityScore(row.use_count, row.success_count) < config.minQuality) {
+                        feedback.disable(row.name);
+                        store.updateArtifactStatus(row.name, 'disabled');
+                        metrics.inc('quality_pruned');
+                        log(`deepjit: quality-pruned low-quality artifact ${row.name}`);
+                    }
+                }
+            }
         }
         const tier = runTiering(store, {
             deoptMinUses: config.deoptMinUses,

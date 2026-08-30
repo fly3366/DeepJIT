@@ -1,9 +1,9 @@
 # DeepJIT plugin bundle patch.
 # Install: dsh plugin --profile <name> add /path/to/deepjit   (pnpm link)
-#         or, once published: dsh plugin --profile <name> add deepjit
+#         or, once published: dsh plugin --profile <name> add @fly3366/deepjit
 - insert:
     - id: deepjit
-      name: deepjit
+      name: '@fly3366/deepjit'
 
 # Make the skill filesystem provider watch our isolated artifact directory so
 # generated skills hot-reload without touching ~/.dsh/skills or project dirs.

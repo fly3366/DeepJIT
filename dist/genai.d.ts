@@ -7,6 +7,8 @@
  * registers global providers these spans export via OTLP, otherwise no-op.
  */
 import { type Span } from '@opentelemetry/api';
+/** Record the standard GenAI client token-usage metric (input/output). */
+export declare function recordTokenUsage(model: string, usage: LlmUsage): void;
 export interface LlmSpanInput {
     operation?: string;
     system?: string;
