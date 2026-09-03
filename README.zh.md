@@ -28,7 +28,7 @@ trace ──► SQLite ──► 热点挖掘 ──► LLM 编译 ──► ski
 | 项 | 值 |
 |---|---|
 | DSH 版本 | `@deepseek-ai/dsh` `0.1.1-rc.2`（运行级验证） |
-| DSH mainline | `0a53fb55`（2026-08-30 静态核对，所用 API 无变化） |
+| DSH mainline | `76fda729`（2026-09-03 静态核对；session-persistence 下钻改为 `SessionHandle.read`，下次升依赖时适配；pin 的 rc.6 不受影响） |
 | 验证 commit | `5869674`（2026-08-13） |
 | Node | `^22.19 \|\| >=24` |
 | 适用 profile | `headless`、`web` |
