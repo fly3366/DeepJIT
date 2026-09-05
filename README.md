@@ -31,7 +31,7 @@ traces ──► SQLite ──► hot-path mining ──► LLM compile ──�
 | Item | Value |
 |---|---|
 | DSH version | `@deepseek-ai/dsh` `0.1.1-rc.2` (runtime-verified) |
-| DSH mainline | `76fda729` (static-checked 2026-09-03; session-persistence drill-down moved to `SessionHandle.read` — adapt on next dep bump; pinned rc.6 unaffected) |
+| DSH mainline | `d347e703` (static-checked 2026-09-04; session-persistence drill-down = `SessionHandle.read(offset,length)` — adapt on next dep bump; pinned rc.6 unaffected) |
 | Verified commit | `5869674` (2026-08-13) |
 | Node | `^22.19 \|\| >=24` |
 | Profiles | `headless`, `web` |
