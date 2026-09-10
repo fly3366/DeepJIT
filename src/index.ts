@@ -1,7 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import { join as pathJoin } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
 import '@deepseek-ai/dsh-session'
 import '@deepseek-ai/dsh-tools'
 import '@deepseek-ai/cordis-plugin-timer'
@@ -22,7 +21,7 @@ import { metrics } from './metrics.ts'
 export const name = 'deepjit'
 export const inject = ['llm', 'skills', 'tools', 'sessionPersistence', 'timer']
 
-const callIdFactory: (uuid: string) => unknown = (uuid) => CallId(uuid)
+const callIdFactory: (uuid: string) => unknown = (uuid) => uuid
 
 /**
  * Best-effort read of the harness locale (web client `locale` settings
