@@ -27,13 +27,12 @@ trace ──► SQLite ──► 热点挖掘 ──► LLM 编译 ──► ski
 
 | 项 | 值 |
 |---|---|
-| DSH 版本 | `@deepseek-ai/dsh` `0.1.1-rc.2`（运行级验证） |
-| DSH mainline | `b2e3b2a0`（2026-09-09 静态核对；session-persistence 下钻为 `SessionHandle.read(offset,length)`，下次升依赖时适配；pin 的 rc.6 不受影响） |
-| 验证 commit | `5869674`（2026-08-13） |
+| DSH 版本 | `@deepseek-ai/dsh` `0.1.5-rc.2`（运行级验证） |
+| DSH mainline | session-persistence 下钻改用 `SessionHandle.open().read(offset,length)`（0.1.5 API）；summarizer 同时兼容旧版 `readFrom` 与新版句柄形式 |
 | Node | `^22.19 \|\| >=24` |
 | 适用 profile | `headless`、`web` |
 
-dsh 处于预发布阶段，API 可能变化；依赖 pin 到 `@deepseek-ai/*` `0.1.0-rc.6`。
+dsh 处于预发布阶段，API 可能变化；依赖 pin 到 `@deepseek-ai/*` `0.1.5-rc.2`（cordis `4.0.2`）。
 
 ## 安装 / 卸载
 

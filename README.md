@@ -30,13 +30,12 @@ traces ──► SQLite ──► hot-path mining ──► LLM compile ──�
 
 | Item | Value |
 |---|---|
-| DSH version | `@deepseek-ai/dsh` `0.1.1-rc.2` (runtime-verified) |
-| DSH mainline | `b2e3b2a0` (static-checked 2026-09-09; session-persistence drill-down = `SessionHandle.read(offset,length)` — adapt on next dep bump; pinned rc.6 unaffected) |
-| Verified commit | `5869674` (2026-08-13) |
+| DSH version | `@deepseek-ai/dsh` `0.1.5-rc.2` (runtime-verified) |
+| DSH mainline | session-persistence drill-down now uses `SessionHandle.open().read(offset,length)` (0.1.5 API); summarizer supports both the legacy `readFrom` and the new handle form |
 | Node | `^22.19 \|\| >=24` |
 | Profiles | `headless`, `web` |
 
-dsh is pre-release; APIs may drift. Pins `@deepseek-ai/*` to `0.1.0-rc.6`.
+dsh is pre-release; APIs may drift. Pins `@deepseek-ai/*` to `0.1.5-rc.2` (cordis `4.0.2`).
 
 ## Install / Uninstall
 
