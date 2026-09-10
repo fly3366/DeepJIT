@@ -63,7 +63,7 @@
     "@deepseek-ai/dsh-skill": "0.1.5-rc.2",
     "@deepseek-ai/dsh-skill-filesystem": "0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
-    "@deepseek-ai/schemastery": "3.18.1",
+    "@deepseek-ai/schemastery": "3.18.2",
     "@opentelemetry/api": "^1.9.0"
   },
   "devDependencies": {
