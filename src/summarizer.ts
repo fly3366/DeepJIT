@@ -67,8 +67,13 @@ export interface LlmLike {
   }): AsyncIterable<unknown>
 }
 
+interface PersistenceHandle {
+  read(offset?: number, length?: number, options?: { signal?: AbortSignal }): Promise<{ events: readonly unknown[] }>
+  close?(): Promise<void> | void
+}
 export interface SessionPersistenceLike {
-  readFrom(id: unknown, fromSeq: number, signal?: AbortSignal): Promise<{ events: unknown[] }>
+  readFrom?(id: unknown, fromSeq: number, signal?: AbortSignal): Promise<{ events: unknown[] }>
+  open?(id: unknown, access: 'read' | 'write', options?: unknown): Promise<PersistenceHandle>
 }
 
 export interface PublishFn {
@@ -232,6 +237,26 @@ export class Summarizer {
     }
   }
 
+  /** Read session events from a seq, supporting both legacy and handle-based persistence. */
+  private async drill(sessionId: string, fromSeq: number, signal?: AbortSignal): Promise<unknown[] | undefined> {
+    const p = this.persistence
+    if (!p) return undefined
+    if (p.readFrom) {
+      const { events } = await p.readFrom(sessionId, fromSeq, signal)
+      return events
+    }
+    if (p.open) {
+      const handle = await p.open(sessionId, 'read')
+      try {
+        const { events } = await handle.read(fromSeq, undefined, { signal })
+        return [...events]
+      } finally {
+        await handle.close?.()
+      }
+    }
+    return undefined
+  }
+
   private async buildTranscript(
     sessionId: string,
     key: string,
@@ -262,9 +287,11 @@ export class Summarizer {
     let drilled = false
     if (this.persistence) {
       try {
-        const { events: evs } = await this.persistence.readFrom(sessionId, fromSeq, signal)
-        events = evs
-        drilled = true
+        const evs = await this.drill(sessionId, fromSeq, signal)
+        if (evs) {
+          events = evs
+          drilled = true
+        }
       } catch {
         drilled = false
       }
