@@ -6,7 +6,7 @@
  * Emitted through the standard @opentelemetry/api; when dsh-o11y-plugin
  * registers global providers these spans export via OTLP, otherwise no-op.
  */
-import { trace, metrics, SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
+import { trace, metrics, SpanKind, SpanStatusCode, type Span, type SpanAttributes } from '@opentelemetry/api'
 
 const TRACER = 'deepjit'
 const METER = 'deepjit'
@@ -37,19 +37,31 @@ export interface LlmUsage {
   reasoningTokens?: number
 }
 
+/**
+ * Build the gen_ai.* attribute set for one LLM client span. Pure so the
+ * semconv keys are unit-testable without registering an OTel SDK provider.
+ * `gen_ai.provider.name` is the current semconv key; `gen_ai.system` is its
+ * deprecated predecessor, still emitted so older backends keep rendering.
+ */
+export function llmSpanAttributes(input: LlmSpanInput): SpanAttributes {
+  const provider = input.system ?? 'deepseek'
+  return {
+    'gen_ai.operation.name': input.operation ?? 'chat',
+    'gen_ai.agent.name': 'deepjit',
+    'gen_ai.provider.name': provider,
+    'gen_ai.system': provider,
+    'gen_ai.request.model': input.model,
+    ...(input.temperature !== undefined ? { 'gen_ai.request.temperature': input.temperature } : {}),
+    ...(input.maxTokens !== undefined ? { 'gen_ai.request.max_tokens': input.maxTokens } : {}),
+  }
+}
+
 /** Start a client span for one LLM request, tagged with gen_ai.* attributes. */
 export function startLlmSpan(input: LlmSpanInput): Span {
   const tracer = trace.getTracer(TRACER)
   return tracer.startSpan(`chat ${input.model}`, {
     kind: SpanKind.CLIENT,
-    attributes: {
-      'gen_ai.operation.name': input.operation ?? 'chat',
-      'gen_ai.agent.name': 'deepjit',
-      'gen_ai.system': input.system ?? 'deepseek',
-      'gen_ai.request.model': input.model,
-      ...(input.temperature !== undefined ? { 'gen_ai.request.temperature': input.temperature } : {}),
-      ...(input.maxTokens !== undefined ? { 'gen_ai.request.max_tokens': input.maxTokens } : {}),
-    },
+    attributes: llmSpanAttributes(input),
   })
 }
 
