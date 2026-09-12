@@ -189,3 +189,46 @@ test('summarizer: drills down via sessionPersistence when available', async () =
   assert.equal(artifact!.type, 'skill')
   store.close()
 })
+
+test('summarizer: drills down via handle-based persistence (open/read/close) on dsh 0.1.5+', async () => {
+  const store = new DeepJitStore(':memory:')
+  seedHotPattern(store)
+  let openedAccess: unknown
+  let readOffset: unknown
+  let closed = false
+  const s = new Summarizer(
+    store,
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 1 },
+    fakeLlm(JSON.stringify({ type: 'skill', name: 'repo-guide', description: 'guide', content: '# Guide\nDo things.' })),
+    {
+      async open(_id: unknown, access: 'read' | 'write') {
+        openedAccess = access
+        return {
+          async read(offset?: number) {
+            readOffset = offset
+            return {
+              events: [
+                { type: 'user/message', data: { content: [{ type: 'text', text: 'full user text' }] } },
+                { type: 'tool/call', data: { name: 'read_file', arguments: '{"path":"/a"}' } },
+                { type: 'tool/result', data: { message: { content: [{ type: 'text', text: 'full result' }] } } },
+              ],
+            }
+          },
+          async close() {
+            closed = true
+          },
+        }
+      },
+    },
+    async (a) => ({ mode: 'filesystem' as const, filePath: `/tmp/${a.name}/SKILL.md`, name: a.name }),
+    () => {},
+  )
+  const n = await s.run()
+  assert.equal(n, 1)
+  assert.equal(openedAccess, 'read', 'opens the stored session read-only')
+  assert.equal(typeof readOffset, 'number', 'handle.read is called with a numeric seq offset')
+  assert.equal(closed, true, 'handle is closed after drill-down')
+  const artifact = store.getArtifact('deepjit-repo-guide')
+  assert.equal(artifact!.type, 'skill')
+  store.close()
+})
