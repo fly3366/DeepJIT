@@ -20,19 +20,30 @@ export function recordTokenUsage(model, usage) {
         hist.record(usage.outputTokens, { 'gen_ai.request.model': model, 'gen_ai.token.type': 'output' });
     }
 }
+/**
+ * Build the gen_ai.* attribute set for one LLM client span. Pure so the
+ * semconv keys are unit-testable without registering an OTel SDK provider.
+ * `gen_ai.provider.name` is the current semconv key; `gen_ai.system` is its
+ * deprecated predecessor, still emitted so older backends keep rendering.
+ */
+export function llmSpanAttributes(input) {
+    const provider = input.system ?? 'deepseek';
+    return {
+        'gen_ai.operation.name': input.operation ?? 'chat',
+        'gen_ai.agent.name': 'deepjit',
+        'gen_ai.provider.name': provider,
+        'gen_ai.system': provider,
+        'gen_ai.request.model': input.model,
+        ...(input.temperature !== undefined ? { 'gen_ai.request.temperature': input.temperature } : {}),
+        ...(input.maxTokens !== undefined ? { 'gen_ai.request.max_tokens': input.maxTokens } : {}),
+    };
+}
 /** Start a client span for one LLM request, tagged with gen_ai.* attributes. */
 export function startLlmSpan(input) {
     const tracer = trace.getTracer(TRACER);
     return tracer.startSpan(`chat ${input.model}`, {
         kind: SpanKind.CLIENT,
-        attributes: {
-            'gen_ai.operation.name': input.operation ?? 'chat',
-            'gen_ai.agent.name': 'deepjit',
-            'gen_ai.system': input.system ?? 'deepseek',
-            'gen_ai.request.model': input.model,
-            ...(input.temperature !== undefined ? { 'gen_ai.request.temperature': input.temperature } : {}),
-            ...(input.maxTokens !== undefined ? { 'gen_ai.request.max_tokens': input.maxTokens } : {}),
-        },
+        attributes: llmSpanAttributes(input),
     });
 }
 /** Finish an LLM span, recording gen_ai usage and error status. */

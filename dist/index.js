@@ -1,6 +1,5 @@
 import { appendFileSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
-import { CallId } from '@deepseek-ai/dsh-llm';
 import '@deepseek-ai/dsh-session';
 import '@deepseek-ai/dsh-tools';
 import '@deepseek-ai/cordis-plugin-timer';
@@ -18,7 +17,7 @@ import { runTiering } from "./compiler/tiering.js";
 import { metrics } from "./metrics.js";
 export const name = 'deepjit';
 export const inject = ['llm', 'skills', 'tools', 'sessionPersistence', 'timer'];
-const callIdFactory = (uuid) => CallId(uuid);
+const callIdFactory = (uuid) => uuid;
 /**
  * Best-effort read of the harness locale (web client `locale` settings
  * namespace). Returns undefined when absent (e.g. headless), letting i18n

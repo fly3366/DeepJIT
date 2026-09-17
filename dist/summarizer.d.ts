@@ -52,10 +52,19 @@ export interface LlmLike {
         signal?: AbortSignal;
     }): AsyncIterable<unknown>;
 }
+interface PersistenceHandle {
+    read(offset?: number, length?: number, options?: {
+        signal?: AbortSignal;
+    }): Promise<{
+        events: readonly unknown[];
+    }>;
+    close?(): Promise<void> | void;
+}
 export interface SessionPersistenceLike {
-    readFrom(id: unknown, fromSeq: number, signal?: AbortSignal): Promise<{
+    readFrom?(id: unknown, fromSeq: number, signal?: AbortSignal): Promise<{
         events: unknown[];
     }>;
+    open?(id: unknown, access: 'read' | 'write', options?: unknown): Promise<PersistenceHandle>;
 }
 export interface PublishFn {
     (artifact: Omit<CompiledArtifact, 'sourcePatternId'> & {
@@ -89,6 +98,8 @@ export declare class Summarizer {
      * Returns the published flow name, or undefined on failure.
      */
     compilePatternAsFlow(patternId: number, signal?: AbortSignal): Promise<string | undefined>;
+    /** Read session events from a seq, supporting both legacy and handle-based persistence. */
+    private drill;
     private buildTranscript;
     private compile;
     private callLlm;

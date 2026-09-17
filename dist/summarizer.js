@@ -159,6 +159,27 @@ export class Summarizer {
             return undefined;
         }
     }
+    /** Read session events from a seq, supporting both legacy and handle-based persistence. */
+    async drill(sessionId, fromSeq, signal) {
+        const p = this.persistence;
+        if (!p)
+            return undefined;
+        if (p.readFrom) {
+            const { events } = await p.readFrom(sessionId, fromSeq, signal);
+            return events;
+        }
+        if (p.open) {
+            const handle = await p.open(sessionId, 'read');
+            try {
+                const { events } = await handle.read(fromSeq, undefined, { signal });
+                return [...events];
+            }
+            finally {
+                await handle.close?.();
+            }
+        }
+        return undefined;
+    }
     async buildTranscript(sessionId, key, signal) {
         const names = key.split('>');
         const toolRows = this.store.readRecentTraces(sessionId, ['tool'], this.cfg.transcriptMaxRows);
@@ -186,9 +207,11 @@ export class Summarizer {
         let drilled = false;
         if (this.persistence) {
             try {
-                const { events: evs } = await this.persistence.readFrom(sessionId, fromSeq, signal);
-                events = evs;
-                drilled = true;
+                const evs = await this.drill(sessionId, fromSeq, signal);
+                if (evs) {
+                    events = evs;
+                    drilled = true;
+                }
             }
             catch {
                 drilled = false;
