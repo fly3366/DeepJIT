@@ -56,6 +56,50 @@ test('summarizer: compiles a flow artifact from a hot pattern', async () => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+test('summarizer: promotion records a tracked flow artifact (executable, not orphaned)', async () => {
+  const store = new DeepJitStore(':memory:')
+  seedHotPattern(store)
+  const pattern = store.getPatternByKey('flow-seq', 'read_file>write_file')
+  assert.ok(pattern, 'source pattern exists')
+  // A hot, reliable skill compiled from this pattern is the promotion source.
+  store.insertArtifact({
+    type: 'skill',
+    name: 'deepjit-hot',
+    file_path: '/tmp/h.md',
+    status: 'active',
+    source_pattern_id: pattern!.id,
+  })
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'deepjit-promo-'))
+  const flowDir = path.join(dir, 'flows')
+  const publish = async (a: { name: string }) => ({
+    mode: 'filesystem' as const,
+    filePath: path.join(flowDir, `${a.name}.json`),
+    name: a.name,
+  })
+  const s = new Summarizer(
+    store,
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 1 },
+    fakeLlm(JSON.stringify({
+      type: 'flow',
+      name: 'summarize-repo-flow',
+      description: 'Summarize a repository',
+      steps: [{ tool: 'read_file', args: { path: '${input.path}' } }, { tool: 'write_file', args: { path: '/b' } }],
+    })),
+    undefined,
+    publish,
+    () => {},
+  )
+  const promoted = await s.compilePatternAsFlow(pattern!.id)
+  assert.equal(promoted, 'deepjit-summarize-repo-flow')
+  const row = store.getArtifact('deepjit-summarize-repo-flow')
+  assert.ok(row, 'promoted flow is tracked in the artifacts table (so FlowExecutor.run can find it)')
+  assert.equal(row!.type, 'flow')
+  assert.equal(row!.status, 'active')
+  assert.equal(row!.source_pattern_id, pattern!.id)
+  rmSync(dir, { recursive: true, force: true })
+  store.close()
+})
+
 test('summarizer: rejects invalid LLM output and retries', async () => {
   const store = new DeepJitStore(':memory:')
   seedHotPattern(store)

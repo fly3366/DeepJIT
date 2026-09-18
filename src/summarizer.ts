@@ -226,11 +226,25 @@ export class Summarizer {
       if (!transcript.tools.length) return undefined
       const output = await this.compile(pattern.key, pattern.count, transcript, pattern.sample_session, signal, 'flow')
       if (output.type !== 'flow') return undefined
-      const { name: publishedName } = await this.publish({ ...output, sourcePatternId: pattern.id })
+      const finalName = `${SKILL_PREFIX}${output.name}`
+      const { mode, filePath } = await this.publish({ ...output, sourcePatternId: pattern.id })
+      this.store.insertArtifact({
+        type: 'flow',
+        name: finalName,
+        title: output.title,
+        description: output.description,
+        file_path: filePath,
+        source_pattern_id: pattern.id,
+        status: 'active',
+        feedback_mode: mode,
+        llm_provider: this.cfg.llmProvider,
+        llm_model: this.cfg.llmModel,
+        summary: output.summary,
+      })
       this.store.markPatternCompiled(pattern.id)
       metrics.inc('promotions')
-      this.log(`deepjit: promoted pattern "${pattern.key}" to flow "${publishedName}"`)
-      return publishedName
+      this.log(`deepjit: promoted pattern "${pattern.key}" to flow "${finalName}"`)
+      return finalName
     } catch (err) {
       this.log(`deepjit: promotion failed for pattern ${patternId}: ${(err as Error).message}`)
       return undefined
