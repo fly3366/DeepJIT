@@ -50,17 +50,20 @@ export class ArtifactFeedback {
         this.log(`deepjit: wrote flow ${name} -> ${filePath}`);
         return { mode: 'filesystem', filePath, name };
     }
-    async waitForDiscovery(name, artifact) {
+    waitForDiscovery(name, artifact) {
         const timeoutMs = 2000;
         const deadline = Date.now() + timeoutMs;
-        const done = new Promise((resolve) => {
+        return new Promise((resolve) => {
             let settled = false;
+            let poll;
             const finish = (mode) => {
-                if (!settled) {
-                    settled = true;
-                    off?.();
-                    resolve(mode);
-                }
+                if (settled)
+                    return;
+                settled = true;
+                if (poll)
+                    clearTimeout(poll);
+                off?.();
+                resolve(mode);
             };
             const check = async () => {
                 try {
@@ -77,15 +80,8 @@ export class ArtifactFeedback {
                 poll = setTimeout(check, 250);
             };
             const off = this.skills.on('skills/change', () => void check());
-            let poll;
             void check();
-            return () => {
-                if (poll)
-                    clearTimeout(poll);
-                off?.();
-            };
         });
-        return done;
     }
     registerRuntime(name, artifact) {
         if (this.runtimeRegistrations.has(name))
@@ -129,12 +125,14 @@ export class ArtifactFeedback {
         this.unregisterRuntime(full);
         const skillPath = path.join(this.dirs.skillDir, full);
         const flowPath = path.join(this.dirs.flowDir, `${full}.json`);
-        if (existsSync(skillPath))
+        if (existsSync(skillPath)) {
+            rmSync(`${skillPath}.disabled`, { recursive: true, force: true });
             renameSync(skillPath, `${skillPath}.disabled`);
-        if (existsSync(`${skillPath}.disabled`) && existsSync(skillPath))
-            rmSync(skillPath, { recursive: true });
-        if (existsSync(flowPath))
+        }
+        if (existsSync(flowPath)) {
+            rmSync(`${flowPath}.disabled`, { force: true });
             renameSync(flowPath, `${flowPath}.disabled`);
+        }
     }
     /** Reverse of disable. */
     enable(name) {

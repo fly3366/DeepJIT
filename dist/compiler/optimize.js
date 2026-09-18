@@ -1,10 +1,10 @@
 /**
  * Compiler "optimize" pass (AOT): validate a candidate flow against the live
- * tool registry and constant-fold literal arguments ahead of time, so the
- * runtime executor does less work and bad flows are rejected at compile time.
+ * tool registry and report how many argument values are compile-time literals
+ * versus runtime `${input.*}` bindings, so bad flows are rejected at compile time.
  *
- * Mirrors a compiler's middle-end: it never performs side effects, only
- * analysis + rewriting of the IR (the step list).
+ * Analysis only — it never performs side effects and returns the step list
+ * unchanged (no rewriting); the folded/dynamic counts are informational.
  */
 const TEMPLATE_RE = /^\$\{input\.(.+)\}$/;
 function isTemplate(value) {
@@ -31,8 +31,9 @@ function foldArgs(args, stats) {
         foldValue(args[key], stats);
 }
 /**
- * Validate and partially-evaluate a flow IR. Throws if a step references a
- * tool that does not exist in the live registry (and is not a nested flow).
+ * Validate a flow IR against the live registry and count literal vs dynamic
+ * args. Throws if a step references a tool that does not exist in the live
+ * registry (and is not a nested deepjit_flow). The steps are returned unchanged.
  */
 export function optimizeFlow(steps, ctx) {
     const stats = { folded: 0, dynamic: 0 };

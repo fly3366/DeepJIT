@@ -1,4 +1,4 @@
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, existsSync, statSync, renameSync } from 'node:fs'
 import { join as pathJoin } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import '@deepseek-ai/dsh-session'
@@ -9,7 +9,7 @@ export { Config } from './config.ts'
 import { DeepJitStore, qualityScore } from './store.ts'
 import { TraceCollector } from './collector.ts'
 import { mineHotPatterns } from './miner.ts'
-import { Summarizer } from './summarizer.ts'
+import { Summarizer, type SessionPersistenceLike } from './summarizer.ts'
 import { ArtifactFeedback } from './feedback.ts'
 import { FlowExecutor } from './flow-executor.ts'
 import { StatusTool } from './status-tool.ts'
@@ -55,10 +55,16 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     config.maxPendingCalls,
   )
 
+  const logFile = pathJoin(dirs.home, 'deepjit', 'deepjit.log')
+  const LOG_MAX_BYTES = 5_000_000
   const log = (msg: string) => {
     ;(ctx as unknown as { logger?: { info: (m: string) => void } }).logger?.info(msg)
     try {
-      appendFileSync(pathJoin(dirs.home, 'deepjit', 'deepjit.log'), `${new Date().toISOString()} ${msg}\n`)
+      // Single-generation rotation so the log file cannot grow unbounded.
+      if (existsSync(logFile) && statSync(logFile).size > LOG_MAX_BYTES) {
+        renameSync(logFile, `${logFile}.1`)
+      }
+      appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`)
     } catch {
       // logging is best-effort
     }
@@ -88,9 +94,7 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     log,
   )
 
-  const persistence = (ctx as unknown as {
-    sessionPersistence?: { readFrom(id: unknown, fromSeq: number, signal?: AbortSignal): Promise<{ events: unknown[] }> }
-  }).sessionPersistence
+  const persistence = (ctx as unknown as { sessionPersistence?: SessionPersistenceLike }).sessionPersistence
 
   const llm = (ctx as unknown as {
     llm: { stream(o: unknown): AsyncIterable<unknown> }

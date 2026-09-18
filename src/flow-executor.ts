@@ -47,7 +47,10 @@ function resolveValue(value: unknown, input: Record<string, unknown>): unknown {
   if (Array.isArray(value)) return value.map((v) => resolveValue(v, input))
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = resolveValue(v, input)
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue
+      out[k] = resolveValue(v, input)
+    }
     return out
   }
   return value
@@ -68,7 +71,14 @@ function resultSummary(result: unknown, maxChars: number): string {
   const content = Array.isArray(r?.content)
     ? (r.content as { type?: string; text?: string }[]).filter((b) => b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n')
     : ''
-  const value = r?.value === undefined ? '' : JSON.stringify(r.value)
+  let value = ''
+  if (r?.value !== undefined) {
+    try {
+      value = JSON.stringify(r.value) ?? ''
+    } catch {
+      value = String(r.value)
+    }
+  }
   const text = (content || value || '').trim()
   return text.length <= maxChars ? text : text.slice(0, maxChars) + '…'
 }

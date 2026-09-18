@@ -14,8 +14,11 @@ function resolveValue(value, input) {
         return value.map((v) => resolveValue(v, input));
     if (value && typeof value === 'object') {
         const out = {};
-        for (const [k, v] of Object.entries(value))
+        for (const [k, v] of Object.entries(value)) {
+            if (k === '__proto__' || k === 'constructor' || k === 'prototype')
+                continue;
             out[k] = resolveValue(v, input);
+        }
         return out;
     }
     return value;
@@ -37,7 +40,15 @@ function resultSummary(result, maxChars) {
     const content = Array.isArray(r?.content)
         ? r.content.filter((b) => b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n')
         : '';
-    const value = r?.value === undefined ? '' : JSON.stringify(r.value);
+    let value = '';
+    if (r?.value !== undefined) {
+        try {
+            value = JSON.stringify(r.value) ?? '';
+        }
+        catch {
+            value = String(r.value);
+        }
+    }
     const text = (content || value || '').trim();
     return text.length <= maxChars ? text : text.slice(0, maxChars) + '…';
 }

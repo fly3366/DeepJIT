@@ -436,7 +436,15 @@ export class Summarizer {
           signal,
         })) {
           const c = chunk as { type?: string; text?: string; reason?: unknown; usage?: typeof usage }
-          if (c.type === 'finish') this.log(`deepjit: llm finish ${JSON.stringify(c.reason).slice(0, 500)}`)
+          if (c.type === 'finish') {
+            let reason = ''
+            try {
+              reason = JSON.stringify(c.reason) ?? ''
+            } catch {
+              reason = String(c.reason)
+            }
+            this.log(`deepjit: llm finish ${reason.slice(0, 500)}`)
+          }
           if (c.type === 'text-delta' && typeof c.text === 'string') text += c.text
           if (c.type === 'usage' && c.usage) usage = c.usage
         }

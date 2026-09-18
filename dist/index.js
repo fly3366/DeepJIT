@@ -1,4 +1,4 @@
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync, statSync, renameSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
 import '@deepseek-ai/dsh-session';
 import '@deepseek-ai/dsh-tools';
@@ -43,11 +43,17 @@ export function apply(ctx, config) {
     const dirs = resolveDirs(ctx, config);
     const store = new DeepJitStore(dirs.dbPath);
     const collector = new TraceCollector(store, () => collector.flushSync(), config.maxResultChars, config.flushBatchSize, config.maxPendingCalls);
+    const logFile = pathJoin(dirs.home, 'deepjit', 'deepjit.log');
+    const LOG_MAX_BYTES = 5_000_000;
     const log = (msg) => {
         ;
         ctx.logger?.info(msg);
         try {
-            appendFileSync(pathJoin(dirs.home, 'deepjit', 'deepjit.log'), `${new Date().toISOString()} ${msg}\n`);
+            // Single-generation rotation so the log file cannot grow unbounded.
+            if (existsSync(logFile) && statSync(logFile).size > LOG_MAX_BYTES) {
+                renameSync(logFile, `${logFile}.1`);
+            }
+            appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`);
         }
         catch {
             // logging is best-effort
