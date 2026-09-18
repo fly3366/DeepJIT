@@ -134,6 +134,7 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     config.stepTimeoutMs,
     config.maxResultChars,
     log,
+    config.flowTimeoutMs,
   )
   const statusTool = new StatusTool(store, feedback, dirs, log)
 

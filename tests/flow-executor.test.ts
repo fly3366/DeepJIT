@@ -134,3 +134,36 @@ test('flow executor: rejects deepjit_status steps', async () => {
   rmSync(flowDir, { recursive: true, force: true })
   store.close()
 })
+
+test('flow executor: flowTimeoutMs aborts the overall flow', async () => {
+  const store = new DeepJitStore(':memory:')
+  const flowDir = mkdtempSync(path.join(os.tmpdir(), 'deepjit-flow-'))
+  setup(store, flowDir, 'deepjit-slow', [
+    { tool: 'slow', args: {} },
+    { tool: 'slow2', args: {} },
+  ])
+  let calls = 0
+  const executor = new FlowExecutor(
+    flowDir,
+    store,
+    async (input) => {
+      calls++
+      // Block until aborted: the small flow timeout fires before the large step timeout.
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 5000)
+        input.signal.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
+      })
+      return { isError: false, value: null }
+    },
+    (uuid) => uuid,
+    2000,
+    500,
+    () => {},
+    30,
+  )
+  const res = await executor.run('deepjit-slow', {}, undefined, new AbortController().signal)
+  assert.equal(res.ok, false, 'flow is not-ok when the overall timeout fires')
+  assert.equal(calls, 1, 'flow-level timeout stops before the second step')
+  rmSync(flowDir, { recursive: true, force: true })
+  store.close()
+})

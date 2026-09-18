@@ -82,6 +82,7 @@ export class FlowExecutor {
   private stepTimeoutMs: number
   private maxResultChars: number
   private log: (msg: string) => void
+  private flowTimeoutMs: number
 
   constructor(
     flowDir: string,
@@ -91,6 +92,7 @@ export class FlowExecutor {
     stepTimeoutMs: number,
     maxResultChars: number,
     log: (msg: string) => void,
+    flowTimeoutMs = 0,
   ) {
     this.flowDir = flowDir
     this.store = store
@@ -99,6 +101,7 @@ export class FlowExecutor {
     this.stepTimeoutMs = stepTimeoutMs
     this.maxResultChars = maxResultChars
     this.log = log
+    this.flowTimeoutMs = flowTimeoutMs
   }
 
   get toolDefinition(): object {
@@ -147,9 +150,15 @@ export class FlowExecutor {
       throw new Error(t('flow.recursive', { name: flowName }))
     }
 
+    // Bound the whole flow at the top level; nested runs inherit this budget.
+    const flowSignal =
+      depth === 0 && this.flowTimeoutMs > 0
+        ? AbortSignal.any([signal, AbortSignal.timeout(this.flowTimeoutMs)])
+        : signal
+
     const outcomes: StepOutcome[] = []
     for (let i = 0; i < template.steps.length; i++) {
-      if (signal.aborted) break
+      if (flowSignal.aborted) break
       const step = template.steps[i]!
       const resolvedArgs = resolveValue(step.args ?? {}, input) as Record<string, unknown>
 
@@ -163,7 +172,7 @@ export class FlowExecutor {
         const nestedFlow = String(resolvedArgs.flow ?? '')
         const nestedInput = (resolvedArgs.args ?? {}) as Record<string, unknown>
         try {
-          const nested = await this.run(nestedFlow, nestedInput, agent, signal, depth + 1)
+          const nested = await this.run(nestedFlow, nestedInput, agent, flowSignal, depth + 1)
           outcomes.push({ index: i + 1, tool: `${step.tool}:${nestedFlow}`, ok: nested.ok, summary: `${nested.steps.length} nested steps` })
           if (!nested.ok && step.onError === 'stop') break
         } catch (err) {
@@ -178,14 +187,14 @@ export class FlowExecutor {
       let result: unknown
       let lastError: string | undefined
       for (let attempt = 0; attempt <= attempts; attempt++) {
-        if (signal.aborted) break
+        if (flowSignal.aborted) break
         try {
           result = await this.execute({
             callId: this.makeCallId(crypto.randomUUID()),
             name: step.tool,
             arguments: resolvedArgs,
             agent,
-            signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
+            signal: AbortSignal.any([flowSignal, AbortSignal.timeout(timeoutMs)]),
           })
           const r = result as { isError?: boolean; error?: { message?: string } }
           if (r?.isError) {
@@ -215,7 +224,7 @@ export class FlowExecutor {
       if (!ok && step.onError === 'stop') break
       if (!ok && step.onError !== 'continue' && step.onError !== 'retry') break
     }
-    const ok = outcomes.every((o) => o.ok) && !signal.aborted
+    const ok = outcomes.every((o) => o.ok) && !flowSignal.aborted
     this.store.recordOutcome(flowName, ok)
     if (depth === 0) {
       metrics.inc('flow_runs')

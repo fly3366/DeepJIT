@@ -36,7 +36,8 @@ export declare class FlowExecutor {
     private stepTimeoutMs;
     private maxResultChars;
     private log;
-    constructor(flowDir: string, store: DeepJitStore, execute: ExecuteFn, makeCallId: (uuid: string) => unknown, stepTimeoutMs: number, maxResultChars: number, log: (msg: string) => void);
+    private flowTimeoutMs;
+    constructor(flowDir: string, store: DeepJitStore, execute: ExecuteFn, makeCallId: (uuid: string) => unknown, stepTimeoutMs: number, maxResultChars: number, log: (msg: string) => void, flowTimeoutMs?: number);
     get toolDefinition(): object;
     static readonly MAX_DEPTH = 3;
     run(flowName: string, input: Record<string, unknown>, agent: unknown, signal: AbortSignal, depth?: number): Promise<{

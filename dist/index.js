@@ -90,7 +90,7 @@ export function apply(ctx, config) {
         }
         return published;
     }, log, { toolExists: (name) => name === 'deepjit_flow' || tools.get(name) !== undefined });
-    const flowExecutor = new FlowExecutor(dirs.flowDir, store, (input) => tools.execute(input), callIdFactory, config.stepTimeoutMs, config.maxResultChars, log);
+    const flowExecutor = new FlowExecutor(dirs.flowDir, store, (input) => tools.execute(input), callIdFactory, config.stepTimeoutMs, config.maxResultChars, log, config.flowTimeoutMs);
     const statusTool = new StatusTool(store, feedback, dirs, log);
     // capture
     ctx.on('session/event', (session, event) => {

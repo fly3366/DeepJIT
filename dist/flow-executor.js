@@ -50,7 +50,8 @@ export class FlowExecutor {
     stepTimeoutMs;
     maxResultChars;
     log;
-    constructor(flowDir, store, execute, makeCallId, stepTimeoutMs, maxResultChars, log) {
+    flowTimeoutMs;
+    constructor(flowDir, store, execute, makeCallId, stepTimeoutMs, maxResultChars, log, flowTimeoutMs = 0) {
         this.flowDir = flowDir;
         this.store = store;
         this.execute = execute;
@@ -58,6 +59,7 @@ export class FlowExecutor {
         this.stepTimeoutMs = stepTimeoutMs;
         this.maxResultChars = maxResultChars;
         this.log = log;
+        this.flowTimeoutMs = flowTimeoutMs;
     }
     get toolDefinition() {
         return {
@@ -96,9 +98,13 @@ export class FlowExecutor {
         if (template.steps.some((s) => s.tool === 'deepjit_status')) {
             throw new Error(t('flow.recursive', { name: flowName }));
         }
+        // Bound the whole flow at the top level; nested runs inherit this budget.
+        const flowSignal = depth === 0 && this.flowTimeoutMs > 0
+            ? AbortSignal.any([signal, AbortSignal.timeout(this.flowTimeoutMs)])
+            : signal;
         const outcomes = [];
         for (let i = 0; i < template.steps.length; i++) {
-            if (signal.aborted)
+            if (flowSignal.aborted)
                 break;
             const step = template.steps[i];
             const resolvedArgs = resolveValue(step.args ?? {}, input);
@@ -112,7 +118,7 @@ export class FlowExecutor {
                 const nestedFlow = String(resolvedArgs.flow ?? '');
                 const nestedInput = (resolvedArgs.args ?? {});
                 try {
-                    const nested = await this.run(nestedFlow, nestedInput, agent, signal, depth + 1);
+                    const nested = await this.run(nestedFlow, nestedInput, agent, flowSignal, depth + 1);
                     outcomes.push({ index: i + 1, tool: `${step.tool}:${nestedFlow}`, ok: nested.ok, summary: `${nested.steps.length} nested steps` });
                     if (!nested.ok && step.onError === 'stop')
                         break;
@@ -129,7 +135,7 @@ export class FlowExecutor {
             let result;
             let lastError;
             for (let attempt = 0; attempt <= attempts; attempt++) {
-                if (signal.aborted)
+                if (flowSignal.aborted)
                     break;
                 try {
                     result = await this.execute({
@@ -137,7 +143,7 @@ export class FlowExecutor {
                         name: step.tool,
                         arguments: resolvedArgs,
                         agent,
-                        signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
+                        signal: AbortSignal.any([flowSignal, AbortSignal.timeout(timeoutMs)]),
                     });
                     const r = result;
                     if (r?.isError) {
@@ -172,7 +178,7 @@ export class FlowExecutor {
             if (!ok && step.onError !== 'continue' && step.onError !== 'retry')
                 break;
         }
-        const ok = outcomes.every((o) => o.ok) && !signal.aborted;
+        const ok = outcomes.every((o) => o.ok) && !flowSignal.aborted;
         this.store.recordOutcome(flowName, ok);
         if (depth === 0) {
             metrics.inc('flow_runs');
