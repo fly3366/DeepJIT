@@ -64,6 +64,21 @@ test('store: pattern accumulation across runs and sessions', () => {
   store.close()
 })
 
+test('store: sessions_seen counts distinct sessions, not mining runs', () => {
+  const store = new DeepJitStore(':memory:')
+  // The same session re-mined across two incremental runs must not double-count.
+  store.upsertPattern('flow-seq', 'a>b', 1, 1, 's1', 1000)
+  store.upsertPattern('flow-seq', 'a>b', 1, 1, 's1', 2000)
+  let p = store.getPatternByKey('flow-seq', 'a>b')!
+  assert.equal(p.count, 2, 'occurrences still accumulate across runs')
+  assert.equal(p.sessions_seen, 1, 'same session is not double-counted')
+  // A genuinely different session increments the distinct count.
+  store.upsertPattern('flow-seq', 'a>b', 1, 1, 's2', 3000)
+  p = store.getPatternByKey('flow-seq', 'a>b')!
+  assert.equal(p.sessions_seen, 2, 'distinct session increments sessions_seen')
+  store.close()
+})
+
 test('store: artifacts lifecycle', () => {
   const store = new DeepJitStore(':memory:')
   store.insertArtifact({ type: 'flow', name: 'deepjit-x', description: 'x', file_path: '/tmp/x.json', status: 'active' })

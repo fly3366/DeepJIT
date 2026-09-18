@@ -13,7 +13,8 @@ function seedHotPattern(store: DeepJitStore, sid = 's1'): void {
     { session_id: sid, turn: 1, step: 1, kind: 'tool', seq: 2, ts_ms: 2, payload: '{"name":"read_file","args":"{\\"path\\":\\"/a\\"}"}' },
     { session_id: sid, turn: 1, step: 2, kind: 'tool', seq: 3, ts_ms: 3, payload: '{"name":"write_file","args":"{\\"path\\":\\"/b\\"}"}' },
   ])
-  store.upsertPattern('flow-seq', 'read_file>write_file', 4, 2, sid, 1000)
+  store.upsertPattern('flow-seq', 'read_file>write_file', 2, 1, sid, 1000)
+  store.upsertPattern('flow-seq', 'read_file>write_file', 2, 1, `${sid}-b`, 1000)
 }
 
 function fakeLlm(text: string) {

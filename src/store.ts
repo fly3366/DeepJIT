@@ -82,6 +82,11 @@ CREATE TABLE IF NOT EXISTS patterns (
   last_seen_ms INTEGER,
   UNIQUE(kind, key)
 );
+CREATE TABLE IF NOT EXISTS pattern_sessions (
+  pattern_id INTEGER NOT NULL,
+  session_id TEXT NOT NULL,
+  PRIMARY KEY (pattern_id, session_id)
+);
 CREATE TABLE IF NOT EXISTS artifacts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   type TEXT NOT NULL,
@@ -127,7 +132,7 @@ export class DeepJitStore {
 
   private migrate(): void {
     const version = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version >= 3) return
+    if (version >= 4) return
     this.db.exec('BEGIN')
     try {
       this.db.exec(SCHEMA_V1)
@@ -138,7 +143,7 @@ export class DeepJitStore {
       if (version <= 2) {
         this.db.exec('ALTER TABLE artifacts ADD COLUMN success_count INTEGER DEFAULT 0')
       }
-      this.db.exec('PRAGMA user_version=3')
+      this.db.exec('PRAGMA user_version=4')
       this.db.exec('COMMIT')
     } catch (err) {
       this.db.exec('ROLLBACK')
@@ -262,17 +267,34 @@ export class DeepJitStore {
     sampleSession: string,
     tsMs: number,
   ): void {
-    this.db
-      .prepare(
-        `INSERT INTO patterns (kind, key, count, sessions_seen, sample_session, first_seen_ms, last_seen_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(kind, key) DO UPDATE SET
-           count = patterns.count + excluded.count,
-           sessions_seen = patterns.sessions_seen + excluded.sessions_seen,
-           last_seen_ms = MAX(patterns.last_seen_ms, excluded.last_seen_ms),
-           sample_session = patterns.sample_session`,
-      )
-      .run(kind, key, count, sessionsSeen, sampleSession, tsMs, tsMs)
+    // count/last_seen_ms accumulate every run, but sessions_seen counts DISTINCT
+    // sessions: incremental re-mining of one session must not inflate the
+    // cross-session gate. The (pattern_id, session_id) pair is recorded once.
+    this.db.exec('BEGIN')
+    try {
+      const row = this.db
+        .prepare(
+          `INSERT INTO patterns (kind, key, count, sessions_seen, sample_session, first_seen_ms, last_seen_ms)
+           VALUES (?, ?, ?, 0, ?, ?, ?)
+           ON CONFLICT(kind, key) DO UPDATE SET
+             count = patterns.count + excluded.count,
+             last_seen_ms = MAX(patterns.last_seen_ms, excluded.last_seen_ms)
+           RETURNING id`,
+        )
+        .get(kind, key, count, sampleSession, tsMs, tsMs) as { id: number }
+      const seen = this.db
+        .prepare('INSERT OR IGNORE INTO pattern_sessions (pattern_id, session_id) VALUES (?, ?)')
+        .run(row.id, sampleSession)
+      if (seen.changes > 0) {
+        this.db
+          .prepare('UPDATE patterns SET sessions_seen = sessions_seen + ? WHERE id = ?')
+          .run(sessionsSeen, row.id)
+      }
+      this.db.exec('COMMIT')
+    } catch (err) {
+      this.db.exec('ROLLBACK')
+      throw err
+    }
   }
 
   getHotPatterns(kind: string, minCount: number, minSessions: number, limit: number): PatternRow[] {
