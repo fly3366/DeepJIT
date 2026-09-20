@@ -30,15 +30,20 @@ session/event + tools/result → collector → SQLite traces (~/.dsh/deepjit/dee
 - `src/index.ts` — plugin entry (`name`, `inject`, `apply`): wires collector,
   JIT interval, tools, cleanup. `inject` = `['llm', 'skills', 'tools', 'sessionPersistence', 'timer']`.
 - `src/config.ts` — Schemastery `Config` schema (all knobs have defaults).
-- `src/store.ts` — `node:sqlite` `DatabaseSync` store, WAL, schema v1, batched
-  transactional inserts, watermark queries, patterns/artifacts CRUD.
+- `src/store.ts` — `node:sqlite` `DatabaseSync` store, WAL, schema v4
+  (sessions/traces/patterns/pattern_sessions/artifacts), batched transactional
+  inserts, watermark queries, patterns/artifacts CRUD.
 - `src/collector.ts` — `session/event` + `tools/result` listeners → buffered
   compact `TraceRow`s; call/result pairing by callId; raw value attach.
 - `src/miner.ts` — per-session tool-sequence n-gram counting + intent keyword
-  TF; cross-session aggregation (`count`, `sessions_seen`).
-- `src/summarizer.ts` — candidate selection, JSONL drill-down via
-  `sessionPersistence.readFrom`, LLM compile prompt, strict JSON validation
-  (kebab names, known tool names), retry on parse/transport failures.
+  TF; aggregation where `count` accumulates occurrences but `sessions_seen`
+  counts **distinct** sessions (via `pattern_sessions`), so incremental re-mining
+  of one session does not inflate the cross-session gate.
+- `src/summarizer.ts` — candidate selection, transcript drill-down via
+  `sessionPersistence` (legacy `readFrom` **or** the dsh 0.1.5 handle path
+  `open()`/`read()`/`close()`, whichever the host provides), LLM compile prompt,
+  strict JSON validation (kebab names, known tool names), retry on parse/transport
+  failures.
 - `src/feedback.ts` — artifact publish: write SKILL.md / flow JSON; mechanism A
   (filesystem provider discovery) with mechanism B (runtime `ctx.skills.register`)
   fallback; disable/enable/remove helpers.
@@ -63,7 +68,15 @@ session/event + tools/result → collector → SQLite traces (~/.dsh/deepjit/dee
 
 ## Testing
 
-- `npm test` — builds `dist/` then runs `node --test dist/tests/*.test.js`.
+- `npm test` — runs `node --test "tests/*.test.ts"` directly (Node type-stripping);
+  it does **not** build `dist/`. Use `npm run build` (`tsc -p tsconfig.json`) to
+  compile `src/` → `dist/`.
+- `dist/` is **committed** and is what npm publishes and `github:` installs load
+  (`files: ["dist", "cordis.patch.yml"]`, no `prepublishOnly`). After changing
+  `src/`, run `npm run build` and commit the updated `dist/`. CI enforces this:
+  it runs `npm run build && git diff --exit-code dist`, so a stale committed
+  `dist/` fails the build. (A stale `dist/` once shipped the broken `CallId`
+  import even though `src/` was fixed — keep them in sync.)
 - Tests must stay green; add coverage for new modules.
 - E2E (manual): `dsh plugin --profile headless add <repo>` +
   `DEEPSEEK_API_KEY=... dsh --profile headless "<task>"`, then inspect
@@ -71,6 +84,9 @@ session/event + tools/result → collector → SQLite traces (~/.dsh/deepjit/dee
 
 ## Dependency Notes
 
-- Runtime deps are pinned (`@deepseek-ai/*` 0.1.1-rc.2, cordis 4.0.1) because
-  dsh is pre-release and registry baselines drift from master.
+- Runtime deps are exact-pinned (`@deepseek-ai/*` 0.1.5-rc.2, cordis 4.0.2)
+  because dsh is pre-release and registry baselines drift from master. The
+  `@deepseek-ai/*` `latest` dist-tags can point to **older** builds (e.g.
+  `0.0.1-rc.x`), so never `npm install @latest` / `npm update` these — bump
+  explicit exact versions only, then re-run gates.
 - Node `^22.19 || >=24` (node:sqlite required).
