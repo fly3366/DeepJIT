@@ -57,6 +57,32 @@ test('summarizer: compiles a flow artifact from a hot pattern', async () => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+test('summarizer: sends system prompt via options.system, not a system-role message (dsh 0.1.7)', async () => {
+  const store = new DeepJitStore(':memory:')
+  seedHotPattern(store)
+  let captured: { messages: unknown[]; system?: string } | undefined
+  const s = new Summarizer(
+    store,
+    { llmProvider: 'p', llmModel: 'm', maxResultChars: 500, minRepeat: 3, topK: 5, minFlowSteps: 2, minPatternValue: 6, transcriptMaxRows: 1000, compileCandidates: 1 },
+    {
+      async *stream(options: { messages: unknown[]; system?: string }): AsyncIterable<unknown> {
+        captured = options
+        yield { type: 'text-delta', text: JSON.stringify({ type: 'skill', name: 'repo-guide', description: 'guide', content: '# Guide\nDo things.' }) }
+      },
+    },
+    undefined,
+    async (a) => ({ mode: 'filesystem' as const, filePath: `/tmp/${a.name}/SKILL.md`, name: a.name }),
+    () => {},
+  )
+  await s.run()
+  assert.ok(captured, 'llm.stream was called')
+  assert.equal(typeof captured!.system, 'string', 'system prompt passed via options.system')
+  assert.match(captured!.system!, /JIT compiler/)
+  const roles = (captured!.messages as { role: string }[]).map((m) => m.role)
+  assert.deepEqual(roles, ['user'], 'only a user-role message; no system-role message')
+  store.close()
+})
+
 test('summarizer: promotion records a tracked flow artifact (executable, not orphaned)', async () => {
   const store = new DeepJitStore(':memory:')
   seedHotPattern(store)

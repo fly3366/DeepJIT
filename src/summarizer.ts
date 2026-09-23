@@ -377,15 +377,15 @@ export class Summarizer {
         : userMsg
       let raw: string
       try {
+        // dsh 0.1.7+: a system-role RequestMessage requires durable id/source,
+        // so one-shot callers pass the system prompt via GenerateOptions.system.
         raw = await this.callLlm(
-          [
-            { role: 'system', content: [{ type: 'text', text: SYSTEM_PROMPT }] },
-            { role: 'user', content: [{ type: 'text', text: userContent }] },
-          ],
+          [{ role: 'user', content: [{ type: 'text', text: userContent }] }],
           provider,
           model,
           sampleSession,
           signal,
+          SYSTEM_PROMPT,
         )
       } catch (err) {
         lastError = (err as Error).message
@@ -416,6 +416,7 @@ export class Summarizer {
     model: string,
     sessionId: string | undefined,
     signal?: AbortSignal,
+    system?: string,
   ): Promise<string> {
     let lastError: unknown
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -430,6 +431,7 @@ export class Summarizer {
           provider,
           model,
           messages,
+          ...(system !== undefined ? { system } : {}),
           temperature: 0.2,
           maxTokens: 4000,
           sessionId,

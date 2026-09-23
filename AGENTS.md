@@ -61,6 +61,9 @@ session/event + tools/result → collector → SQLite traces (~/.dsh/deepjit/dee
    from `request/context`; `llmModel` config is fallback-only.
 3. **Message shape**: every LLM message content is a `ContentBlock[]` array —
    string content breaks the DeepSeek adapter's `flattenText` (TRANSPORT errors).
+   Since dsh 0.1.7 a system-role `RequestMessage` requires durable `id`/`source`,
+   so one-shot compile calls pass the system prompt via `GenerateOptions.system`
+   (only identity-free user messages go in `messages`).
 4. **Isolation**: artifacts live under `~/.dsh/deepjit/` only; skill names get
    the `deepjit-` prefix; never touch `~/.dsh/skills` or project skill dirs.
 5. **Cleanup**: on unload, flush the collector, wait for in-flight JIT runs
@@ -84,9 +87,15 @@ session/event + tools/result → collector → SQLite traces (~/.dsh/deepjit/dee
 
 ## Dependency Notes
 
-- Runtime deps are exact-pinned (`@deepseek-ai/*` 0.1.5-rc.2, cordis 4.0.2)
+- Runtime deps are exact-pinned (`@deepseek-ai/*` 0.1.7-rc.1, cordis 4.0.4)
   because dsh is pre-release and registry baselines drift from master. The
   `@deepseek-ai/*` `latest` dist-tags can point to **older** builds (e.g.
   `0.0.1-rc.x`), so never `npm install @latest` / `npm update` these — bump
   explicit exact versions only, then re-run gates.
+- dsh 0.1.7+ packages declare host-provided peers (`dsh-agent`, `dsh-scope`,
+  `dsh-ptc-runtime`, ...) that this plugin never imports; `.npmrc` sets
+  `legacy-peer-deps=true` so `npm install` can resolve. Keep dependencies to
+  packages actually imported in `src/` (side-effect type augmentations count):
+  currently `cordis`, `dsh-session`, `dsh-tools`, `cordis-plugin-timer`,
+  `schemastery` (+ `@opentelemetry/api`).
 - Node `^22.19 || >=24` (node:sqlite required).

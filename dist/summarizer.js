@@ -295,10 +295,9 @@ export class Summarizer {
                 : userMsg;
             let raw;
             try {
-                raw = await this.callLlm([
-                    { role: 'system', content: [{ type: 'text', text: SYSTEM_PROMPT }] },
-                    { role: 'user', content: [{ type: 'text', text: userContent }] },
-                ], provider, model, sampleSession, signal);
+                // dsh 0.1.7+: a system-role RequestMessage requires durable id/source,
+                // so one-shot callers pass the system prompt via GenerateOptions.system.
+                raw = await this.callLlm([{ role: 'user', content: [{ type: 'text', text: userContent }] }], provider, model, sampleSession, signal, SYSTEM_PROMPT);
             }
             catch (err) {
                 lastError = err.message;
@@ -324,7 +323,7 @@ export class Summarizer {
             throw new Error(`LLM output not usable after ${n} candidate(s): ${lastError}`);
         return best;
     }
-    async callLlm(messages, provider, model, sessionId, signal) {
+    async callLlm(messages, provider, model, sessionId, signal, system) {
         let lastError;
         for (let attempt = 0; attempt < 3; attempt++) {
             if (attempt > 0)
@@ -339,6 +338,7 @@ export class Summarizer {
                     provider,
                     model,
                     messages,
+                    ...(system !== undefined ? { system } : {}),
                     temperature: 0.2,
                     maxTokens: 4000,
                     sessionId,
