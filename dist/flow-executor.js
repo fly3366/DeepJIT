@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { t } from "./i18n.js";
-import { metrics } from "./metrics.js";
+import { t } from './i18n.js';
+import { metrics } from './metrics.js';
 const TEMPLATE_RE = /^\$\{input\.(.+)\}$/;
 function resolveValue(value, input) {
     if (typeof value === 'string') {

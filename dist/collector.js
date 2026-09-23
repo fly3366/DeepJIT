@@ -1,4 +1,4 @@
-import { metrics } from "./metrics.js";
+import { metrics } from './metrics.js';
 /** deepjit's own tools are excluded from traces to prevent JIT self-compilation loops. */
 const JIT_TOOL_PREFIX = 'deepjit_';
 function isJitTool(name) {

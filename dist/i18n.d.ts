@@ -9,20 +9,20 @@
 export type Locale = 'en' | 'zh';
 export type LocalePreference = 'auto' | Locale;
 declare const en: {
-    readonly 'status.empty': "No deepjit artifacts yet.";
-    readonly 'status.nameRequired': "name is required for {action}";
-    readonly 'status.unknown': "unknown artifact \"{name}\"";
-    readonly 'status.fileMissing': "artifact \"{name}\" file is missing: {path}";
-    readonly 'status.alreadyDisabled': "artifact \"{name}\" is already disabled";
-    readonly 'status.alreadyActive': "artifact \"{name}\" is already active";
-    readonly 'status.disabled': "disabled \"{name}\"";
-    readonly 'status.enabled': "enabled \"{name}\"";
-    readonly 'status.deleted': "deleted \"{name}\"";
-    readonly 'status.unknownAction': "unknown action \"{action}\"";
-    readonly 'flow.unknown': "unknown flow \"{name}\" (deepjit_status list shows available flows)";
-    readonly 'flow.disabled': "flow \"{name}\" is disabled";
-    readonly 'flow.noSteps': "flow \"{name}\" has no steps";
-    readonly 'flow.recursive': "flow \"{name}\" references deepjit's own tools; recursive JIT flows are not allowed";
+    readonly 'status.empty': 'No deepjit artifacts yet.';
+    readonly 'status.nameRequired': 'name is required for {action}';
+    readonly 'status.unknown': 'unknown artifact "{name}"';
+    readonly 'status.fileMissing': 'artifact "{name}" file is missing: {path}';
+    readonly 'status.alreadyDisabled': 'artifact "{name}" is already disabled';
+    readonly 'status.alreadyActive': 'artifact "{name}" is already active';
+    readonly 'status.disabled': 'disabled "{name}"';
+    readonly 'status.enabled': 'enabled "{name}"';
+    readonly 'status.deleted': 'deleted "{name}"';
+    readonly 'status.unknownAction': 'unknown action "{action}"';
+    readonly 'flow.unknown': 'unknown flow "{name}" (deepjit_status list shows available flows)';
+    readonly 'flow.disabled': 'flow "{name}" is disabled';
+    readonly 'flow.noSteps': 'flow "{name}" has no steps';
+    readonly 'flow.recursive': 'flow "{name}" references deepjit\'s own tools; recursive JIT flows are not allowed';
 };
 export type MessageKey = keyof typeof en;
 /**

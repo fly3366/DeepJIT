@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { qualityScore } from "./store.js";
-import { t } from "./i18n.js";
-import { metrics } from "./metrics.js";
+import { qualityScore } from './store.js';
+import { t } from './i18n.js';
+import { metrics } from './metrics.js';
 /** The deepjit_status tool: inspect and manage compiled artifacts. */
 export class StatusTool {
     store;
