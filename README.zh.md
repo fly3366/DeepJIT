@@ -27,12 +27,12 @@ trace ──► SQLite ──► 热点挖掘 ──► LLM 编译 ──► ski
 
 | 项 | 值 |
 |---|---|
-| DSH 版本 | `@deepseek-ai/dsh` `0.1.7-rc.2`（已对照发布类型静态核验 API + 单元测试） |
+| DSH 版本 | `@deepseek-ai/dsh` `0.2.0-rc.1`（已对照发布类型静态核验 API + 单元测试） |
 | DSH mainline | 下钻使用 `SessionHandle.open().read(offset,length)`；一次性 LLM 调用经 `GenerateOptions.system` 传系统提示词（0.1.7 起 system 角色消息需持久 id/source） |
 | Node | `^22.19 \|\| >=24` |
 | 适用 profile | `headless`、`web` |
 
-dsh 处于预发布阶段，API 可能变化；依赖 pin 到 `@deepseek-ai/*` `0.1.7-rc.2`（cordis `4.0.4`）。
+dsh 处于预发布阶段，API 可能变化；依赖 pin 到 `@deepseek-ai/*` `0.2.0-rc.1`（cordis `4.0.4`）。
 
 ## 安装 / 卸载
 

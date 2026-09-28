@@ -30,12 +30,12 @@ traces ──► SQLite ──► hot-path mining ──► LLM compile ──�
 
 | Item | Value |
 |---|---|
-| DSH version | `@deepseek-ai/dsh` `0.1.7-rc.2` (API static-checked against published types + unit tests) |
+| DSH version | `@deepseek-ai/dsh` `0.2.0-rc.1` (API static-checked against published types + unit tests) |
 | DSH mainline | drill-down uses `SessionHandle.open().read(offset,length)`; one-shot LLM calls pass the system prompt via `GenerateOptions.system` (0.1.7 requires durable identity for system-role messages) |
 | Node | `^22.19 \|\| >=24` |
 | Profiles | `headless`, `web` |
 
-dsh is pre-release; APIs may drift. Pins `@deepseek-ai/*` to `0.1.7-rc.2` (cordis `4.0.4`).
+dsh is pre-release; APIs may drift. Pins `@deepseek-ai/*` to `0.2.0-rc.1` (cordis `4.0.4`).
 
 ## Install / Uninstall
 
