@@ -87,7 +87,7 @@ session/event + tools/result → collector → SQLite traces (~/.dsh/deepjit/dee
 
 ## Dependency Notes
 
-- Runtime deps are exact-pinned (`@deepseek-ai/*` 0.2.1-rc.4, cordis 4.0.5)
+- Runtime deps are exact-pinned (`@deepseek-ai/*` 0.2.1-rc.5, cordis 4.0.5)
   because dsh is pre-release and registry baselines drift from master. The
   `@deepseek-ai/*` `latest` dist-tags can point to **older** builds (e.g.
   `0.0.1-rc.x`), so never `npm install @latest` / `npm update` these — bump
