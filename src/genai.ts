@@ -3,23 +3,32 @@
  * Attribute names follow the OTel GenAI semconv (experimental but widely
  * adopted), so backends that understand gen_ai.* render rich LLM spans.
  *
- * Emitted through the standard @opentelemetry/api; when dsh-o11y-plugin
- * registers global providers these spans export via OTLP, otherwise no-op.
+ * Emitted through the standard @opentelemetry/api globals. dsh's official
+ * telemetry (the dsh-otel channel factory plus its session/product adapters)
+ * installs no global OTel provider and exposes no plugin-facing counters, so
+ * these signals ride whichever provider the deployment registers — e.g.
+ * dsh-o11y-plugin — and stay no-op without one.
  */
-import { trace, metrics, SpanKind, SpanStatusCode, type Span, type SpanAttributes } from '@opentelemetry/api'
+import { trace, metrics, SpanKind, SpanStatusCode, type Histogram, type Span, type SpanAttributes } from '@opentelemetry/api'
 
 const TRACER = 'deepjit'
 const METER = 'deepjit'
 
+/**
+ * Lazily cached token-usage histogram. The API meter proxies to the global
+ * provider whenever it registers, so caching early is safe and avoids
+ * re-creating the same-named instrument (and SDK duplicate warnings) per call.
+ */
+let tokenUsage: Histogram | undefined
+
 /** Record the standard GenAI client token-usage metric (input/output). */
 export function recordTokenUsage(model: string, usage: LlmUsage): void {
-  const meter = metrics.getMeter(METER)
-  const hist = meter.createHistogram('gen_ai.client.token.usage', { unit: '{token}' })
+  tokenUsage ??= metrics.getMeter(METER).createHistogram('gen_ai.client.token.usage', { unit: '{token}' })
   if (usage.inputTokens !== undefined) {
-    hist.record(usage.inputTokens, { 'gen_ai.request.model': model, 'gen_ai.token.type': 'input' })
+    tokenUsage.record(usage.inputTokens, { 'gen_ai.request.model': model, 'gen_ai.token.type': 'input' })
   }
   if (usage.outputTokens !== undefined) {
-    hist.record(usage.outputTokens, { 'gen_ai.request.model': model, 'gen_ai.token.type': 'output' })
+    tokenUsage.record(usage.outputTokens, { 'gen_ai.request.model': model, 'gen_ai.token.type': 'output' })
   }
 }
 

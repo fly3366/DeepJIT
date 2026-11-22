@@ -1,10 +1,12 @@
 /**
  * Lightweight in-process metrics for the DeepJIT pipeline.
  *
- * dsh's own observability (session-telemetry-otel) only exports agent-session
- * events as OTel logs; it does not expose plugin-facing counters. This module
- * gives DeepJIT its own counters + timing histograms, readable via
- * `deepjit_status {action:"metrics"}`.
+ * dsh's official telemetry (the dsh-otel channel factory plus its session/
+ * product adapters) covers dsh's own events, installs no global OTel provider,
+ * and exposes no plugin-facing counters. This module gives DeepJIT its own
+ * counters + timing histograms, readable via `deepjit_status {action:"metrics"}`
+ * and mirrored to OTel instruments whenever a provider is registered (e.g. by
+ * dsh-o11y-plugin); without one the OTel half is no-op.
  *
  * Kept as a process-local singleton: metrics describe the running plugin
  * instance and reset on restart (durable stats live in the SQLite tables).

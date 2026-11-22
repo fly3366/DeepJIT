@@ -1,6 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { startLlmSpan, endLlmSpan, llmSpanAttributes } from '../src/genai.ts'
+import { startLlmSpan, endLlmSpan, llmSpanAttributes, recordTokenUsage } from '../src/genai.ts'
+
+test('genai: recordTokenUsage caches its instrument and is safe to call repeatedly', () => {
+  assert.doesNotThrow(() => recordTokenUsage('deepseek-v4-flash', { inputTokens: 10, outputTokens: 5 }))
+  // Second call reuses the cached histogram; empty/partial usage records nothing.
+  assert.doesNotThrow(() => recordTokenUsage('deepseek-v4-flash', {}))
+  assert.doesNotThrow(() => recordTokenUsage('m', { inputTokens: 1 }))
+})
 
 test('genai: start/end span with usage and error do not throw (no-op without provider)', () => {
   const span = startLlmSpan({ model: 'deepseek-v4-flash', temperature: 0.2, maxTokens: 100 })

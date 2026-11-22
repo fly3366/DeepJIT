@@ -3,8 +3,11 @@
  * Attribute names follow the OTel GenAI semconv (experimental but widely
  * adopted), so backends that understand gen_ai.* render rich LLM spans.
  *
- * Emitted through the standard @opentelemetry/api; when dsh-o11y-plugin
- * registers global providers these spans export via OTLP, otherwise no-op.
+ * Emitted through the standard @opentelemetry/api globals. dsh's official
+ * telemetry (the dsh-otel channel factory plus its session/product adapters)
+ * installs no global OTel provider and exposes no plugin-facing counters, so
+ * these signals ride whichever provider the deployment registers — e.g.
+ * dsh-o11y-plugin — and stay no-op without one.
  */
 import { type Span, type SpanAttributes } from '@opentelemetry/api';
 /** Record the standard GenAI client token-usage metric (input/output). */
