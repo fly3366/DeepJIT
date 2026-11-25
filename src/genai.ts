@@ -3,6 +3,15 @@
  * Attribute names follow the OTel GenAI semconv (experimental but widely
  * adopted), so backends that understand gen_ai.* render rich LLM spans.
  *
+ * The GenAI semconv moved to its own repo (semantic-conventions-genai) and is
+ * still Development-stability with renames in flight. We keep the widely-deployed
+ * keys as primary and emit a new-spec alias only where it is free (one span
+ * attribute): gen_ai.usage.reasoning.output_tokens alongside the legacy
+ * gen_ai.usage.reasoning_tokens. The metric rename to
+ * gen_ai.client.inference.usage.{input,output}_tokens is structural (a histogram
+ * plus token.type dimension becomes two histograms) and is deferred until the
+ * spec stabilizes or backend support lands.
+ *
  * Emitted through the standard @opentelemetry/api globals. dsh's official
  * telemetry (the dsh-otel channel factory plus its session/product adapters)
  * installs no global OTel provider and exposes no plugin-facing counters, so
@@ -79,7 +88,11 @@ export function endLlmSpan(span: Span, usage: LlmUsage | undefined, error?: unkn
   if (usage) {
     if (usage.inputTokens !== undefined) span.setAttribute('gen_ai.usage.input_tokens', usage.inputTokens)
     if (usage.outputTokens !== undefined) span.setAttribute('gen_ai.usage.output_tokens', usage.outputTokens)
-    if (usage.reasoningTokens !== undefined) span.setAttribute('gen_ai.usage.reasoning_tokens', usage.reasoningTokens)
+    if (usage.reasoningTokens !== undefined) {
+      // Legacy key plus the current semconv alias, so old and new backends each find one.
+      span.setAttribute('gen_ai.usage.reasoning_tokens', usage.reasoningTokens)
+      span.setAttribute('gen_ai.usage.reasoning.output_tokens', usage.reasoningTokens)
+    }
   }
   if (error) {
     span.recordException(error instanceof Error ? error : new Error(String(error)))

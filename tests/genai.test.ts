@@ -19,6 +19,34 @@ test('genai: start/end span with usage and error do not throw (no-op without pro
   endLlmSpan(errSpan, undefined, new Error('boom'))
 })
 
+test('genai: endLlmSpan emits both legacy and new-spec reasoning token keys', () => {
+  const attrs: Record<string, unknown> = {}
+  const fakeSpan = {
+    setAttribute: (k: string, v: unknown) => { attrs[k] = v },
+    recordException: () => {},
+    setStatus: () => {},
+    end: () => {},
+  } as unknown as Parameters<typeof endLlmSpan>[0]
+  endLlmSpan(fakeSpan, { inputTokens: 10, outputTokens: 5, reasoningTokens: 3 })
+  assert.equal(attrs['gen_ai.usage.input_tokens'], 10)
+  assert.equal(attrs['gen_ai.usage.output_tokens'], 5)
+  assert.equal(attrs['gen_ai.usage.reasoning_tokens'], 3, 'legacy reasoning key kept')
+  assert.equal(attrs['gen_ai.usage.reasoning.output_tokens'], 3, 'new-spec reasoning alias added')
+})
+
+test('genai: endLlmSpan omits reasoning keys when no reasoning tokens reported', () => {
+  const attrs: Record<string, unknown> = {}
+  const fakeSpan = {
+    setAttribute: (k: string, v: unknown) => { attrs[k] = v },
+    recordException: () => {},
+    setStatus: () => {},
+    end: () => {},
+  } as unknown as Parameters<typeof endLlmSpan>[0]
+  endLlmSpan(fakeSpan, { inputTokens: 4, outputTokens: 2 })
+  assert.equal('gen_ai.usage.reasoning_tokens' in attrs, false)
+  assert.equal('gen_ai.usage.reasoning.output_tokens' in attrs, false)
+})
+
 test('genai: llmSpanAttributes emits provider.name + deprecated system alias and defaults', () => {
   const attrs = llmSpanAttributes({ model: 'deepseek-v4-flash' })
   assert.equal(attrs['gen_ai.provider.name'], 'deepseek')
