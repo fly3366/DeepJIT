@@ -13,6 +13,7 @@ import { Summarizer, type SessionPersistenceLike } from './summarizer.ts'
 import { ArtifactFeedback } from './feedback.ts'
 import { FlowExecutor } from './flow-executor.ts'
 import { StatusTool } from './status-tool.ts'
+import { registerStatusRoutes } from './status-routes.ts'
 import { resolveDirs } from './paths.ts'
 import { setLocale } from './i18n.ts'
 import { runTiering } from './compiler/tiering.ts'
@@ -141,6 +142,10 @@ export function apply(ctx: Context, config: DeepJitConfig) {
     config.flowTimeoutMs,
   )
   const statusTool = new StatusTool(store, feedback, dirs, log)
+
+  // Web UI status route. `connection` is web-profile-only, so inject it nested
+  // (not in the top-level inject array) to keep headless activation unchanged.
+  ctx.inject(['connection'], (scope) => registerStatusRoutes(scope, { store, log }))
 
   // capture
   ctx.on('session/event', (session, event) => {

@@ -11,6 +11,7 @@ import { Summarizer } from './summarizer.js';
 import { ArtifactFeedback } from './feedback.js';
 import { FlowExecutor } from './flow-executor.js';
 import { StatusTool } from './status-tool.js';
+import { registerStatusRoutes } from './status-routes.js';
 import { resolveDirs } from './paths.js';
 import { setLocale } from './i18n.js';
 import { runTiering } from './compiler/tiering.js';
@@ -98,6 +99,9 @@ export function apply(ctx, config) {
     }, log, { toolExists: (name) => name === 'deepjit_flow' || tools.get(name) !== undefined });
     const flowExecutor = new FlowExecutor(dirs.flowDir, store, (input) => tools.execute(input), callIdFactory, config.stepTimeoutMs, config.maxResultChars, log, config.flowTimeoutMs);
     const statusTool = new StatusTool(store, feedback, dirs, log);
+    // Web UI status route. `connection` is web-profile-only, so inject it nested
+    // (not in the top-level inject array) to keep headless activation unchanged.
+    ctx.inject(['connection'], (scope) => registerStatusRoutes(scope, { store, log }));
     // capture
     ctx.on('session/event', (session, event) => {
         collector.handleEvent(session?.id, event);

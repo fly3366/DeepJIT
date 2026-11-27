@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "DeepJIT",
+    "description": "JIT-compiles repeated agent workflows into reusable skills and flows."
+  }
+}
