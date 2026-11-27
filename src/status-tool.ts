@@ -71,39 +71,30 @@ export class StatusTool {
       case 'show': {
         if (!args.name) return t('status.nameRequired', { action: 'show' })
         const row = this.store.getArtifact(args.name)
-        if (!row) return t('status.unknown', { name: args.name })
+        if (!row) return t('status.unknown', { name: args.name ?? '' })
         if (!existsSync(row.file_path)) return t('status.fileMissing', { name: args.name, path: row.file_path })
         const content = readFileSync(row.file_path, 'utf8')
         return `# ${row.name}\nstatus: ${row.status}\npath: ${row.file_path}\n\n${content.slice(0, 6000)}`
       }
       case 'disable': {
-        if (!args.name) return t('status.nameRequired', { action: 'disable' })
-        const row = this.store.getArtifact(args.name)
-        if (!row) return t('status.unknown', { name: args.name })
-        if (row.status === 'disabled') return t('status.alreadyDisabled', { name: args.name })
-        this.feedback.disable(args.name)
-        this.store.updateArtifactStatus(args.name, 'disabled')
-        this.log(`deepjit: disabled artifact ${args.name}`)
-        return t('status.disabled', { name: args.name })
+        const r = this.applyAction('disable', args.name)
+        if (r.code === 'name-required') return t('status.nameRequired', { action: 'disable' })
+        if (r.code === 'unknown') return t('status.unknown', { name: args.name ?? '' })
+        if (r.code === 'already-disabled') return t('status.alreadyDisabled', { name: args.name ?? '' })
+        return t('status.disabled', { name: args.name ?? '' })
       }
       case 'enable': {
-        if (!args.name) return t('status.nameRequired', { action: 'enable' })
-        const row = this.store.getArtifact(args.name)
-        if (!row) return t('status.unknown', { name: args.name })
-        if (row.status === 'active') return t('status.alreadyActive', { name: args.name })
-        this.feedback.enable(args.name)
-        this.store.updateArtifactStatus(args.name, 'active')
-        this.log(`deepjit: enabled artifact ${args.name}`)
-        return t('status.enabled', { name: args.name })
+        const r = this.applyAction('enable', args.name)
+        if (r.code === 'name-required') return t('status.nameRequired', { action: 'enable' })
+        if (r.code === 'unknown') return t('status.unknown', { name: args.name ?? '' })
+        if (r.code === 'already-active') return t('status.alreadyActive', { name: args.name ?? '' })
+        return t('status.enabled', { name: args.name ?? '' })
       }
       case 'delete': {
-        if (!args.name) return t('status.nameRequired', { action: 'delete' })
-        const row = this.store.getArtifact(args.name)
-        if (!row) return t('status.unknown', { name: args.name })
-        this.feedback.remove(args.name)
-        this.store.deleteArtifact(args.name)
-        this.log(`deepjit: deleted artifact ${args.name}`)
-        return t('status.deleted', { name: args.name })
+        const r = this.applyAction('delete', args.name)
+        if (r.code === 'name-required') return t('status.nameRequired', { action: 'delete' })
+        if (r.code === 'unknown') return t('status.unknown', { name: args.name ?? '' })
+        return t('status.deleted', { name: args.name ?? '' })
       }
       case 'metrics': {
         const snap = metrics.snapshot()
@@ -113,6 +104,34 @@ export class StatusTool {
       default:
         return t('status.unknownAction', { action: args.action })
     }
+  }
+
+  /**
+   * Shared mutation path for the agent tool and the Web action route. Performs
+   * the exact feedback+store sequence and returns a stable code, never a message.
+   */
+  applyAction(action: 'enable' | 'disable' | 'delete', name?: string): { ok: boolean; code: string } {
+    if (!name) return { ok: false, code: 'name-required' }
+    const row = this.store.getArtifact(name)
+    if (!row) return { ok: false, code: 'unknown' }
+    if (action === 'disable') {
+      if (row.status === 'disabled') return { ok: false, code: 'already-disabled' }
+      this.feedback.disable(name)
+      this.store.updateArtifactStatus(name, 'disabled')
+      this.log(`deepjit: disabled artifact ${name}`)
+      return { ok: true, code: 'ok' }
+    }
+    if (action === 'enable') {
+      if (row.status === 'active') return { ok: false, code: 'already-active' }
+      this.feedback.enable(name)
+      this.store.updateArtifactStatus(name, 'active')
+      this.log(`deepjit: enabled artifact ${name}`)
+      return { ok: true, code: 'ok' }
+    }
+    this.feedback.remove(name)
+    this.store.deleteArtifact(name)
+    this.log(`deepjit: deleted artifact ${name}`)
+    return { ok: true, code: 'ok' }
   }
 }
 

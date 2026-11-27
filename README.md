@@ -62,6 +62,18 @@ DEEPSEEK_API_KEY=... dsh --profile headless "read package.json and tsconfig.json
 dsh --profile headless "use deepjit_status to list compiled artifacts"
 ```
 
+## Web UI
+
+On a `web` profile, DeepJIT adds a status panel to its plugin detail page
+(Plugins → DeepJIT): compiled artifacts with status/quality/usage, hot uncompiled
+patterns, store stats and metrics, plus per-artifact enable/disable/delete
+actions (delete asks for inline confirmation). The panel is a hand-written
+browser bundle (`web/client.js`, no build step) rendered into the
+`plugins.detail.section` slot. It reads a Host-only JSON route
+(`GET /api/deepjit/status`) and posts actions to `POST /api/deepjit/action`;
+host filesystem paths and session ids never reach the browser. The panel is
+inactive in headless profiles.
+
 ## Configuration
 
 Override in `cordis.patch.yml` or a profile patch. Key options (full list in

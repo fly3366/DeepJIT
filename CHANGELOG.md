@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-27
+
+### Added
+- Web UI status panel on the plugin detail page (web profiles): compiled
+  artifacts (status/quality/usage), hot uncompiled patterns, store stats and
+  metrics, with per-artifact enable/disable/delete actions (inline delete
+  confirmation). Hand-written browser bundle `web/client.js` (no build step)
+  rendered into the `plugins.detail.section` slot.
+- Host-only JSON data channel: `GET /api/deepjit/status` and
+  `POST /api/deepjit/action` exact Connection Fetch routes, registered under a
+  nested `ctx.inject(['connection'])` so headless activation is unchanged.
+  Payloads exclude host filesystem paths and session ids; action errors return
+  stable codes only.
+- Plugin display metadata (`locale/en.json`, `locale/zh.json`) and an icon.
+
+### Changed
+- `StatusTool` mutation logic extracted into a reusable `applyAction` shared by
+  the agent tool and the Web action route (agent-facing text unchanged).
+
+## [0.2.0] - 2026-11-26
+
+### Changed
+- Aligned pins to dsh 0.2.2-rc.5 (cordis 4.1.0, schemastery 3.19.0); published
+  to npm as 0.2.0.
+
 ## [0.1.0] - 2026-08-13
 
 ### Added

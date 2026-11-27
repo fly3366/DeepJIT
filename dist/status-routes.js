@@ -15,6 +15,21 @@ import { existsSync } from 'node:fs';
 import { qualityScore } from './store.js';
 import { metrics } from './metrics.js';
 export const STATUS_PATH = '/api/deepjit/status';
+export const ACTION_PATH = '/api/deepjit/action';
+const ACTION_ALLOWLIST = ['enable', 'disable', 'delete'];
+const MAX_NAME_LEN = 200;
+const MAX_BODY_BYTES = 64 * 1024;
+/**
+ * Defense-in-depth against path traversal in feedback's path.join: artifact
+ * names are lowercase kebab (as the compiler enforces). Rejects separators,
+ * dot-segments and leading dots on top of the getArtifact existence gate.
+ */
+export function isValidArtifactName(name) {
+    return typeof name === 'string'
+        && name.length > 0
+        && name.length <= MAX_NAME_LEN
+        && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);
+}
 /** Pure payload builder — reused by the route and unit-testable without a Request. */
 export function buildStatusPayload(store) {
     const artifacts = store.listArtifacts().map((r) => ({
@@ -40,12 +55,12 @@ export function buildStatusPayload(store) {
     }));
     return { artifacts, patterns, stats: store.stats(), metrics: metrics.snapshot() };
 }
-/** Register the GET status route on the (web-only) connection service. */
+/** Register the GET status + POST action routes on the (web-only) connection service. */
 export function registerStatusRoutes(ctx, deps) {
     const connection = Reflect.get(ctx, 'connection');
     if (!connection)
         return;
-    const { store, log } = deps;
+    const { store, statusTool, log } = deps;
     connection.fetch.register({
         path: STATUS_PATH,
         methods: ['GET'],
@@ -59,6 +74,39 @@ export function registerStatusRoutes(ctx, deps) {
                 // Host log only; the browser gets a stable code, never err.message (host paths).
                 log(`deepjit: status route error: ${err.message}`);
                 return Response.json({ error: 'status-unavailable' }, { status: 500 });
+            }
+        },
+    });
+    connection.fetch.register({
+        path: ACTION_PATH,
+        methods: ['POST'],
+        requestBody: 'buffered',
+        fetch: async (request) => {
+            const len = Number(request.headers.get('content-length') ?? 0);
+            if (len > MAX_BODY_BYTES)
+                return Response.json({ ok: false, code: 'body-too-large' }, { status: 413 });
+            let body;
+            try {
+                body = await request.json();
+            }
+            catch {
+                return Response.json({ ok: false, code: 'invalid-body' }, { status: 400 });
+            }
+            const action = body?.action;
+            const name = body?.name;
+            if (typeof action !== 'string' || !ACTION_ALLOWLIST.includes(action)) {
+                return Response.json({ ok: false, code: 'invalid-action' }, { status: 400 });
+            }
+            if (!isValidArtifactName(name)) {
+                return Response.json({ ok: false, code: 'invalid-name' }, { status: 400 });
+            }
+            try {
+                const result = statusTool.applyAction(action, name);
+                return Response.json(result, { status: result.ok ? 200 : 400 });
+            }
+            catch (err) {
+                log(`deepjit: action route error: ${err.message}`);
+                return Response.json({ ok: false, code: 'action-failed' }, { status: 500 });
             }
         },
     });

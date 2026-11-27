@@ -49,7 +49,14 @@ session/event + tools/result → collector → SQLite traces (~/.dsh/deepjit/dee
   fallback; disable/enable/remove helpers.
 - `src/flow-executor.ts` — `deepjit_flow` tool: `${input.x}` mapping,
   `ctx.tools.execute` per step (permission system applies), `onError` policy.
-- `src/status-tool.ts` — `deepjit_status` tool: list/show/disable/enable/delete.
+- `src/status-tool.ts` — `deepjit_status` tool: list/show/disable/enable/delete;
+  `applyAction` is the shared mutation path also used by the Web action route.
+- `src/status-routes.ts` — web-only Connection Fetch routes (`GET /api/deepjit/status`,
+  `POST /api/deepjit/action`), registered via nested `ctx.inject(['connection'])`
+  (headless unaffected). Payload hides host paths/session ids; errors are stable codes.
+- `web/client.js` — hand-written lazy-CJS browser half (no bundler, static committed
+  file) rendering the status panel into `plugins.detail.section`; React from the
+  browser module table; document-relative `fetch('api/deepjit/…')`.
 - `src/paths.ts` — resolve dsh home and artifact directories.
 
 ## Key Invariants

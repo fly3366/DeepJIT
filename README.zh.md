@@ -59,6 +59,15 @@ DEEPSEEK_API_KEY=... dsh --profile headless "读取 package.json 和 tsconfig.js
 dsh --profile headless "用 deepjit_status 列出已编译产物"
 ```
 
+## Web 界面
+
+在 `web` profile 下，DeepJIT 会在其插件详情页（插件 → DeepJIT）增加一个状态面板：
+已编译产物（状态/质量/使用次数）、未编译的热模式、存储统计与指标，以及每个产物的
+启用/停用/删除操作（删除需行内二次确认）。面板是手写的浏览器 bundle
+（`web/client.js`，无需构建），渲染进 `plugins.detail.section` 插槽。它读取仅 Host
+可见的 JSON 路由（`GET /api/deepjit/status`），操作经 `POST /api/deepjit/action`
+提交；Host 文件路径与会话 id 不会进入浏览器。headless profile 下面板不生效。
+
 ## 配置
 
 在 `cordis.patch.yml` 或 profile patch 中覆盖。主要配置项（完整列表见

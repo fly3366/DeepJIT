@@ -17,5 +17,13 @@ export declare class StatusTool {
     }, log: (msg: string) => void);
     get toolDefinition(): object;
     private handle;
+    /**
+     * Shared mutation path for the agent tool and the Web action route. Performs
+     * the exact feedback+store sequence and returns a stable code, never a message.
+     */
+    applyAction(action: 'enable' | 'disable' | 'delete', name?: string): {
+        ok: boolean;
+        code: string;
+    };
 }
 export type { StatusArgs };

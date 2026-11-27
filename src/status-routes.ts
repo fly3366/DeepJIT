@@ -15,8 +15,28 @@ import { existsSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 import { DeepJitStore, qualityScore } from './store.ts'
 import { metrics } from './metrics.ts'
+import type { StatusTool } from './status-tool.ts'
 
 export const STATUS_PATH = '/api/deepjit/status'
+export const ACTION_PATH = '/api/deepjit/action'
+
+const ACTION_ALLOWLIST = ['enable', 'disable', 'delete'] as const
+export type ActionName = (typeof ACTION_ALLOWLIST)[number]
+
+const MAX_NAME_LEN = 200
+const MAX_BODY_BYTES = 64 * 1024
+
+/**
+ * Defense-in-depth against path traversal in feedback's path.join: artifact
+ * names are lowercase kebab (as the compiler enforces). Rejects separators,
+ * dot-segments and leading dots on top of the getArtifact existence gate.
+ */
+export function isValidArtifactName(name: unknown): name is string {
+  return typeof name === 'string'
+    && name.length > 0
+    && name.length <= MAX_NAME_LEN
+    && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)
+}
 
 export interface ArtifactView {
   name: string
@@ -87,14 +107,15 @@ interface ConnectionLike {
 
 export interface StatusRouteDeps {
   store: DeepJitStore
+  statusTool: StatusTool
   log: (msg: string) => void
 }
 
-/** Register the GET status route on the (web-only) connection service. */
+/** Register the GET status + POST action routes on the (web-only) connection service. */
 export function registerStatusRoutes(ctx: Context, deps: StatusRouteDeps): void {
   const connection = Reflect.get(ctx, 'connection') as ConnectionLike | undefined
   if (!connection) return
-  const { store, log } = deps
+  const { store, statusTool, log } = deps
   connection.fetch.register({
     path: STATUS_PATH,
     methods: ['GET'],
@@ -107,6 +128,36 @@ export function registerStatusRoutes(ctx: Context, deps: StatusRouteDeps): void 
         // Host log only; the browser gets a stable code, never err.message (host paths).
         log(`deepjit: status route error: ${(err as Error).message}`)
         return Response.json({ error: 'status-unavailable' }, { status: 500 })
+      }
+    },
+  })
+  connection.fetch.register({
+    path: ACTION_PATH,
+    methods: ['POST'],
+    requestBody: 'buffered',
+    fetch: async (request) => {
+      const len = Number(request.headers.get('content-length') ?? 0)
+      if (len > MAX_BODY_BYTES) return Response.json({ ok: false, code: 'body-too-large' }, { status: 413 })
+      let body: unknown
+      try {
+        body = await request.json()
+      } catch {
+        return Response.json({ ok: false, code: 'invalid-body' }, { status: 400 })
+      }
+      const action = (body as { action?: unknown } | null)?.action
+      const name = (body as { name?: unknown } | null)?.name
+      if (typeof action !== 'string' || !ACTION_ALLOWLIST.includes(action as ActionName)) {
+        return Response.json({ ok: false, code: 'invalid-action' }, { status: 400 })
+      }
+      if (!isValidArtifactName(name)) {
+        return Response.json({ ok: false, code: 'invalid-name' }, { status: 400 })
+      }
+      try {
+        const result = statusTool.applyAction(action as ActionName, name)
+        return Response.json(result, { status: result.ok ? 200 : 400 })
+      } catch (err) {
+        log(`deepjit: action route error: ${(err as Error).message}`)
+        return Response.json({ ok: false, code: 'action-failed' }, { status: 500 })
       }
     },
   })

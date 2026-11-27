@@ -145,7 +145,7 @@ export function apply(ctx: Context, config: DeepJitConfig) {
 
   // Web UI status route. `connection` is web-profile-only, so inject it nested
   // (not in the top-level inject array) to keep headless activation unchanged.
-  ctx.inject(['connection'], (scope) => registerStatusRoutes(scope, { store, log }))
+  ctx.inject(['connection'], (scope) => registerStatusRoutes(scope, { store, statusTool, log }))
 
   // capture
   ctx.on('session/event', (session, event) => {
